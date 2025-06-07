@@ -1,0 +1,136 @@
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/use-auth';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { useToast } from '@/hooks/use-toast';
+import { useNotifications } from '@/hooks/use-notifications';
+import { LogIn, Loader2 } from 'lucide-react';
+import { PUBLIC_REGISTRATION_STORAGE_KEY } from '@/lib/config';
+import { logger } from '@/lib/logger';
+
+const LOGIN_FORM_CONTEXT = "LoginForm";
+
+/**
+ * LoginForm component - User authentication interface
+ * Provides email/password login functionality with registration link
+ * Features form validation, loading states, and notification integration
+ * Supports conditional public registration based on application settings
+ * @returns JSX element representing the login form
+ */
+export default function LoginForm() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const { login, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const { toast } = useToast();
+  const { showWelcomeNotification, requestPermission } = useNotifications();
+  const [allowPublicRegistration, setAllowPublicRegistration] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false); 
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedSetting = localStorage.getItem(PUBLIC_REGISTRATION_STORAGE_KEY);
+      setAllowPublicRegistration(storedSetting === 'true');
+      logger.info(LOGIN_FORM_CONTEXT, `useEffect: Public registration UI ${storedSetting === 'true' ? 'enabled' : 'disabled'}.`);
+    }
+  }, []);
+
+  /**
+   * Handles form submission for user login
+   * @param e - Form submission event
+   */
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    logger.info(LOGIN_FORM_CONTEXT, `handleSubmit: Login attempt for email: ${email}`);
+    setIsSubmitting(true);
+    const { error, user } = await login(email, password);
+    setIsSubmitting(false);
+
+    if (error) {
+      logger.warn(LOGIN_FORM_CONTEXT, `handleSubmit: Login failed for ${email}. Error:`, error.message);
+      toast({ title: "Login Failed", description: error.message || "Invalid credentials or user not found.", variant: "destructive" });
+    } else if (user) {
+      logger.info(LOGIN_FORM_CONTEXT, `handleSubmit: Login successful for ${user.name} (${user.email}). Redirecting to /.`);
+      toast({ title: "Login Successful", description: `Welcome back, ${user.name}!` });
+      
+      // Request notification permission and show welcome notification
+      setTimeout(async () => {
+        const permission = await requestPermission();
+        if (permission === 'granted') {
+          showWelcomeNotification(user.name);
+        }
+      }, 1000);
+      
+      router.push('/');
+      router.refresh(); 
+    } else {
+      logger.error(LOGIN_FORM_CONTEXT, `handleSubmit: Login failed for ${email} without a specific error from Supabase.`);
+      toast({ title: "Login Failed", description: "An unknown error occurred.", variant: "destructive"});
+    }
+  };
+
+  const isLoading = authLoading || isSubmitting;
+
+  return (
+    <Card className="w-full max-w-md shadow-xl">
+      <CardHeader>
+        <CardTitle className="text-2xl font-headline flex items-center">
+          <LogIn className="mr-2 h-6 w-6 text-primary" /> Member Access
+        </CardTitle>
+        <CardDescription>Enter your email and password to access Daily Hacklab.</CardDescription>
+      </CardHeader>
+      <form onSubmit={handleSubmit}>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="text-base"
+              disabled={isLoading}
+              autoComplete="email"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="text-base"
+              disabled={isLoading}
+              autoComplete="current-password"
+            />
+          </div>
+        </CardContent>
+        <CardFooter className="flex flex-col gap-4">
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isLoading ? 'Logging in...' : 'Login'}
+          </Button>
+          {allowPublicRegistration && (
+            <p className="text-sm text-center text-muted-foreground">
+              Don't have an account?{' '}
+              <Link href="/register" className="font-medium text-primary hover:underline">
+                Register now
+              </Link>
+            </p>
+          )}
+        </CardFooter>
+      </form>
+    </Card>
+  );
+}

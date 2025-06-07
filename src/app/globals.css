@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Inter', Arial, Helvetica, sans-serif;
+}
+
+@layer base {
+  :root {
+    --background: 216 28% 95%; /* #F0F2F5 light gray */
+    --foreground: 220 13% 25%; /* Darker gray for text */
+    --card: 0 0% 100%;
+    --card-foreground: 220 13% 25%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 13% 25%;
+    --primary: 208 69% 69%; /* #7BB4E5 soft blue */
+    --primary-foreground: 210 40% 98%; /* Light color for text on primary */
+    --secondary: 210 20% 90%; /* Lighter gray for secondary elements */
+    --secondary-foreground: 220 13% 25%;
+    --muted: 210 20% 90%;
+    --muted-foreground: 210 15% 55%; /* Muted text */
+    --accent: 28 66% 55%; /* #D48F5C (was #DFA67B) muted orange - made darker */
+    --accent-foreground: 28 60% 20%; /* Dark orange/brown for text on accent */
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 210 20% 88%; /* Slightly darker than background for borders */
+    --input: 210 20% 88%;
+    --ring: 208 69% 69%; /* Primary color for rings */
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 220 15% 12%;
+    --foreground: 210 20% 92%;
+    --card: 220 15% 15%;
+    --card-foreground: 210 20% 92%;
+    --popover: 220 15% 12%;
+    --popover-foreground: 210 20% 92%;
+    --primary: 208 69% 69%;
+    --primary-foreground: 208 50% 20%;
+    --secondary: 220 15% 22%;
+    --secondary-foreground: 210 20% 92%;
+    --muted: 220 15% 22%;
+    --muted-foreground: 210 15% 65%;
+    --accent: 28 66% 55%; /* #D48F5C (was #DFA67B) muted orange - made darker */
+    --accent-foreground: 28 70% 85%; /* Lighter text on accent for dark mode */
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 15% 25%;
+    --input: 220 15% 25%;
+    --ring: 208 69% 60%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /* overflow-x-hidden; /* Prevents horizontal scroll if canvas slightly overflows due to rounding */
+  }
+
+  .rdp-day_manyPosts button:not([aria-selected="true"]) {
+    @apply bg-green-200 text-green-800 dark:bg-green-700 dark:text-green-50 font-semibold rounded-full;
+  }
+  .rdp-day_manyPosts button:not([aria-selected="true"]):hover {
+     @apply bg-green-300 dark:bg-green-600;
+  }
+
+  .rdp-day_fewPosts button:not([aria-selected="true"]) {
+    @apply bg-yellow-200 text-yellow-800 dark:bg-yellow-700 dark:text-yellow-50 font-semibold rounded-full;
+  }
+  .rdp-day_fewPosts button:not([aria-selected="true"]):hover {
+     @apply bg-yellow-300 dark:bg-yellow-600;
+  }
+
+  /* Test style for a specific day */
+  .rdp-day_testDay button:not([aria-selected="true"]) {
+    @apply bg-blue-500 text-white font-bold rounded-full;
+  }
+  .rdp-day_testDay button:not([aria-selected="true"]):hover {
+    @apply bg-blue-600;
+  }
+}
