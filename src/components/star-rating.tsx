@@ -44,7 +44,7 @@ const AppreciationStar: FC<AppreciationStarProps> = ({
   };
 
   // Button is interactable only if the user is logged in.
-  // The logic to prevent starring one's own submission is handled in the parent (RoundupDisplay)
+  // The logic to prevent starring one's own submission is handled in the parent (PostsDisplay)
   // before calling onStarClick.
   const canInteract = !!currentUser; 
   

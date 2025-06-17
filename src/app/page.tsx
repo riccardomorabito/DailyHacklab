@@ -129,12 +129,12 @@ export default function HomePage() {
                 </Card>
               </Link>
               
-              <Link href="/roundup" passHref className="lg:col-span-1">
+              <Link href="/posts" passHref className="lg:col-span-1">
                 <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
                   <CardHeader>
                     <CardTitle className="flex items-center text-2xl font-headline">
                       <CalendarDays className="mr-3 h-7 w-7 text-primary" />
-                      Activity Archive
+                      Posts
                     </CardTitle>
                   </CardHeader>
                   <CardContent>

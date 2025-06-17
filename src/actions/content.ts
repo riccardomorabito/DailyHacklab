@@ -392,7 +392,7 @@ export async function submitContentAction(formData: FormData, clientIP?: string)
 
   logger.info(CONTENT_ACTIONS_CONTEXT, `submitContentAction: Submission created successfully by ${authUser.email}, ID: ${newSubmission.id}, Approved: ${submissionData.approved}`);
 
-    revalidatePath('/roundup');
+    revalidatePath('/posts');
     revalidatePath('/admin');
 
     return { success: true, submissionId: newSubmission.id };

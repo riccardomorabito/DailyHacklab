@@ -16,8 +16,7 @@ const BOTTOM_NAV_CONTEXT = "BottomNavBar";
  */
 const navItems = [
   { href: '/', label: 'Home', icon: Home, requiresAuth: false },
-  { href: '/submit', label: 'Submit', icon: UploadCloud, requiresAuth: true },
-  { href: '/roundup', label: 'Roundup', icon: CalendarDays, requiresAuth: true },
+  { href: '/posts', label: 'Posts', icon: CalendarDays, requiresAuth: true },
   { href: '/leaderboard', label: 'Leaderboard', icon: BarChart2, requiresAuth: false },
   { href: '/server-farm', label: 'Server Farm', icon: ServerIcon, requiresAuth: true },
   { href: '/settings', label: 'Settings', icon: Cog, requiresAuth: true },

@@ -29,7 +29,7 @@ interface NavLinkItem {
 const navLinksDefinition: NavLinkItem[] = [
   { href: '/', label: 'Home', icon: Home, requiresAuth: false, requiresAdmin: false, isSubItem: false },
   { href: '/submit', label: 'Publish Clip', icon: UploadCloud, requiresAuth: true, requiresAdmin: false, isSubItem: false },
-  { href: '/roundup', label: 'Activity Archive', icon: CalendarDays, requiresAuth: true, requiresAdmin: false, isSubItem: false },
+  { href: '/posts', label: 'Posts', icon: CalendarDays, requiresAuth: true, requiresAdmin: false, isSubItem: false },
   { href: '/events', label: 'Events', icon: Sparkles, requiresAuth: true, requiresAdmin: false, isSubItem: false },
   { href: '/leaderboard', label: 'Leaderboard', icon: BarChart2, requiresAuth: false, requiresAdmin: false, isSubItem: false },
   { href: '/server-farm', label: 'My Datacenter', icon: ServerIcon, requiresAuth: true, requiresAdmin: false, isSubItem: false },

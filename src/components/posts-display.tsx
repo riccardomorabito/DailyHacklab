@@ -40,7 +40,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import ErrorDisplay from './error-display';
 import DynamicBoringAvatar from '@/components/dynamic-boring-avatar';
 
-const ROUNDUP_DISPLAY_CONTEXT = "RoundupDisplay";
+const POSTS_DISPLAY_CONTEXT = "PostsDisplay";
 
 /**
  * UserAvatar component - Handles robust avatar loading with fallback
@@ -219,20 +219,20 @@ const ImageGallery: React.FC<{ photoUrls: string[], altPrefix: string }> = ({ ph
 };
 
 /**
- * RoundupDisplay component - Main interface for viewing submission archives
- * Displays daily submissions with date navigation and interactive features
- * Features date picker, submission galleries, star ratings, and admin controls
+ * PostsDisplay component - Main interface for viewing posts archives
+ * Displays daily posts with date navigation and interactive features
+ * Features date picker, post galleries, star ratings, and admin controls
  * Handles loading states, error conditions, and user interactions
  *
  * Avatar handling features:
  * - Robust image loading with error handling for user profile pictures
  * - Automatic fallback to generated avatars when profile images fail to load
- * - Consistent display across submission entries
+ * - Consistent display across post entries
  * - Debug logging for troubleshooting avatar loading issues
  *
- * @returns JSX element representing the roundup display interface with reliable avatar rendering
+ * @returns JSX element representing the posts display interface with reliable avatar rendering
  */
-export default function RoundupDisplay() {
+export default function PostsDisplay() {
   const [selectedDateForDisplay, setSelectedDateForDisplay] = useState<Date | null>(null);
   const [displayedMonthForPicker, setDisplayedMonthForPicker] = useState<Date | null>(null);
   const [isDateInitialized, setIsDateInitialized] = useState(false);
@@ -247,7 +247,7 @@ export default function RoundupDisplay() {
   const [submissionToDelete, setSubmissionToDelete] = useState<Submission | null>(null);
 
   useEffect(() => {
-    logger.debug(ROUNDUP_DISPLAY_CONTEXT, `useEffect (isAdmin state): isAdmin: ${isAdmin}`);
+    logger.debug(POSTS_DISPLAY_CONTEXT, `useEffect (isAdmin state): isAdmin: ${isAdmin}`);
   }, [isAdmin]);
 
   useEffect(() => {
@@ -255,7 +255,7 @@ export default function RoundupDisplay() {
     setSelectedDateForDisplay(initialDate);
     setDisplayedMonthForPicker(initialDate);
     setIsDateInitialized(true);
-    logger.info(ROUNDUP_DISPLAY_CONTEXT, "useEffect: Date initialized to today on client mount.");
+    logger.info(POSTS_DISPLAY_CONTEXT, "useEffect: Date initialized to today on client mount.");
   }, []);
 
 
@@ -265,14 +265,14 @@ export default function RoundupDisplay() {
    */
   const fetchSubmissions = useCallback(async () => {
     if (!selectedDateForDisplay || !isDateInitialized) {
-      logger.debug(ROUNDUP_DISPLAY_CONTEXT, "fetchSubmissions: Skipped due to uninitialized date or selectedDateForDisplay is null.");
+      logger.debug(POSTS_DISPLAY_CONTEXT, "fetchSubmissions: Skipped due to uninitialized date or selectedDateForDisplay is null.");
       if (isDateInitialized && !selectedDateForDisplay) {
         setSubmissionsForSelectedDate([]);
         setIsLoadingSubmissions(false);
       }
       return;
     }
-    logger.info(ROUNDUP_DISPLAY_CONTEXT, "fetchSubmissions: Starting submissions retrieval for date:", selectedDateForDisplay.toISOString());
+    logger.info(POSTS_DISPLAY_CONTEXT, "fetchSubmissions: Starting submissions retrieval for date:", selectedDateForDisplay.toISOString());
     setIsLoadingSubmissions(true);
     setErrorFetchingSubmissions(null);
     setErrorDetails(undefined);
@@ -280,8 +280,8 @@ export default function RoundupDisplay() {
     const { data, error } = await getApprovedSubmissionsByDate(selectedDateForDisplay);
 
     if (error) {
-      logger.error(ROUNDUP_DISPLAY_CONTEXT, "fetchSubmissions: Error during submissions retrieval:", error);
-      setErrorFetchingSubmissions("Unable to load activities for this date.");
+      logger.error(POSTS_DISPLAY_CONTEXT, "fetchSubmissions: Error during submissions retrieval:", error);
+      setErrorFetchingSubmissions("Unable to load posts for this date.");
       setErrorDetails(typeof error === 'object' ? JSON.stringify(error) : error);
       setSubmissionsForSelectedDate([]);
     } else if (data) {
@@ -290,7 +290,7 @@ export default function RoundupDisplay() {
         new Date(b.submission_date).getTime() - new Date(a.submission_date).getTime()
       );
       setSubmissionsForSelectedDate(sortedData);
-      logger.info(ROUNDUP_DISPLAY_CONTEXT, `fetchSubmissions: Retrieved ${data.length} submissions for ${selectedDateForDisplay.toISOString()}.`);
+      logger.info(POSTS_DISPLAY_CONTEXT, `fetchSubmissions: Retrieved ${data.length} submissions for ${selectedDateForDisplay.toISOString()}.`);
     } else {
       setSubmissionsForSelectedDate([]);
     }
@@ -313,7 +313,7 @@ export default function RoundupDisplay() {
       toast({ title: "Future Date", description: "You cannot select a future date.", variant: "destructive"});
       return;
     }
-    logger.info(ROUNDUP_DISPLAY_CONTEXT, `handleDateSelect: New date selected: ${newSelectedDate.toISOString()}`);
+    logger.info(POSTS_DISPLAY_CONTEXT, `handleDateSelect: New date selected: ${newSelectedDate.toISOString()}`);
     setSelectedDateForDisplay(newSelectedDate);
     setDisplayedMonthForPicker(newSelectedDate);
     setIsDatePickerDialogOpen(false);
@@ -325,7 +325,7 @@ export default function RoundupDisplay() {
   const handlePreviousDay = () => {
     if (selectedDateForDisplay) {
       const prevDay = subDays(selectedDateForDisplay, 1);
-      logger.info(ROUNDUP_DISPLAY_CONTEXT, `handlePreviousDay: Navigation to previous day: ${prevDay.toISOString()}`);
+      logger.info(POSTS_DISPLAY_CONTEXT, `handlePreviousDay: Navigation to previous day: ${prevDay.toISOString()}`);
       handleDateSelect(prevDay);
     }
   };
@@ -340,7 +340,7 @@ export default function RoundupDisplay() {
          toast({ title: "Future Date", description: "You cannot navigate beyond today.", variant: "default"});
         return;
       }
-      logger.info(ROUNDUP_DISPLAY_CONTEXT, `handleNextDay: Navigation to next day: ${nextDay.toISOString()}`);
+      logger.info(POSTS_DISPLAY_CONTEXT, `handleNextDay: Navigation to next day: ${nextDay.toISOString()}`);
       handleDateSelect(nextDay);
     }
   };
@@ -352,7 +352,7 @@ export default function RoundupDisplay() {
    * @param authorId - ID of the submission author
    */
   const handleStarClick = useCallback(async (submissionId: string, authorId: string) => {
-    logger.info(ROUNDUP_DISPLAY_CONTEXT, `handleStarClick: Star/unstar attempt for submission ID: ${submissionId}, author ID: ${authorId}. Current user: ${currentUser?.id}`);
+    logger.info(POSTS_DISPLAY_CONTEXT, `handleStarClick: Star/unstar attempt for submission ID: ${submissionId}, author ID: ${authorId}. Current user: ${currentUser?.id}`);
     if (!currentUser) {
       toast({ title: "Login Required", description: "You must be logged in to give or remove appreciation.", variant: "destructive", duration: 3000});
       return;
@@ -365,7 +365,7 @@ export default function RoundupDisplay() {
     const originalSubmissions = [...submissionsForSelectedDate];
     const submissionIndex = submissionsForSelectedDate.findIndex(s => s.id === submissionId);
     if (submissionIndex === -1) {
-        logger.warn(ROUNDUP_DISPLAY_CONTEXT, `handleStarClick: Submission ID ${submissionId} not found for optimistic update.`);
+        logger.warn(POSTS_DISPLAY_CONTEXT, `handleStarClick: Submission ID ${submissionId} not found for optimistic update.`);
         return;
     }
 
@@ -387,19 +387,19 @@ export default function RoundupDisplay() {
     if (updateCurrentUserData) {
       updateCurrentUserData({ starredSubmissions: newOptimisticStarredSubmissions });
     }
-    logger.debug(ROUNDUP_DISPLAY_CONTEXT, `handleStarClick: Optimistic UI update for submission ID ${submissionId}. New star count: ${submissionToUpdate.stars_received}`);
+    logger.debug(POSTS_DISPLAY_CONTEXT, `handleStarClick: Optimistic UI update for submission ID ${submissionId}. New star count: ${submissionToUpdate.stars_received}`);
 
     const { success, error, newStarsCount, newAuthorScore, newStarredSubmissionsForCurrentUser, isStarred } = await toggleStarSubmission(submissionId);
 
     if (error || !success) {
-      logger.error(ROUNDUP_DISPLAY_CONTEXT, `handleStarClick: Error during toggleStarSubmission for ID ${submissionId}:`, error);
+      logger.error(POSTS_DISPLAY_CONTEXT, `handleStarClick: Error during toggleStarSubmission for ID ${submissionId}:`, error);
       toast({ title: "Appreciation Error", description: error || "Unable to update appreciation.", variant: "destructive" });
       setSubmissionsForSelectedDate(originalSubmissions);
       if (updateCurrentUserData && currentUser.starredSubmissions) {
          updateCurrentUserData({ starredSubmissions: currentUser.starredSubmissions });
       }
     } else {
-      logger.info(ROUNDUP_DISPLAY_CONTEXT, `handleStarClick: toggleStarSubmission success for ID ${submissionId}. New starred state: ${isStarred}, total stars: ${newStarsCount}, author score: ${newAuthorScore}`);
+      logger.info(POSTS_DISPLAY_CONTEXT, `handleStarClick: toggleStarSubmission success for ID ${submissionId}. New starred state: ${isStarred}, total stars: ${newStarsCount}, author score: ${newAuthorScore}`);
       toast({
         title: isStarred ? "Appreciation Sent!" : "Appreciation Removed",
         description: `Author score updated: ${newAuthorScore !== undefined ? newAuthorScore : 'N/A'}. Clip stars: ${newStarsCount}.`,
@@ -423,7 +423,7 @@ export default function RoundupDisplay() {
    */
   const handleDeleteConfirm = async () => {
     if (!submissionToDelete) return;
-    logger.info(ROUNDUP_DISPLAY_CONTEXT, `handleDeleteConfirm: Deletion confirmation for submission ID ${submissionToDelete.id}.`);
+    logger.info(POSTS_DISPLAY_CONTEXT, `handleDeleteConfirm: Deletion confirmation for submission ID ${submissionToDelete.id}.`);
 
     const originalSubmissions = [...submissionsForSelectedDate];
     setSubmissionsForSelectedDate(prev => prev.filter(sub => sub.id !== submissionToDelete.id));
@@ -431,10 +431,10 @@ export default function RoundupDisplay() {
     const { success, error: deleteError } = await deleteSubmissionByAdmin(submissionToDelete.id);
 
     if (success) {
-      logger.info(ROUNDUP_DISPLAY_CONTEXT, `handleDeleteConfirm: Submission ID ${submissionToDelete.id} deleted successfully.`);
+      logger.info(POSTS_DISPLAY_CONTEXT, `handleDeleteConfirm: Submission ID ${submissionToDelete.id} deleted successfully.`);
       toast({ title: "Submission Deleted", description: "The submission has been deleted." });
     } else {
-      logger.error(ROUNDUP_DISPLAY_CONTEXT, `handleDeleteConfirm: Error during deletion of submission ID ${submissionToDelete.id}:`, deleteError);
+      logger.error(POSTS_DISPLAY_CONTEXT, `handleDeleteConfirm: Error during deletion of submission ID ${submissionToDelete.id}:`, deleteError);
       toast({ title: "Deletion Error", description: deleteError || "Unable to delete the submission.", variant: "destructive" });
       setSubmissionsForSelectedDate(originalSubmissions);
     }
@@ -443,9 +443,9 @@ export default function RoundupDisplay() {
 
   useEffect(() => {
     if (isAdmin) {
-      logger.info(ROUNDUP_DISPLAY_CONTEXT, "User is admin. Delete button should be visible.");
+      logger.info(POSTS_DISPLAY_CONTEXT, "User is admin. Delete button should be visible.");
     } else {
-      logger.info(ROUNDUP_DISPLAY_CONTEXT, "User is NOT admin. Delete button should NOT be visible.");
+      logger.info(POSTS_DISPLAY_CONTEXT, "User is NOT admin. Delete button should NOT be visible.");
     }
   }, [isAdmin]);
 
@@ -454,7 +454,7 @@ export default function RoundupDisplay() {
      return (
       <div className="space-y-8">
         <div className="text-center">
-          <h1 className="text-3xl font-bold font-headline">Daily Hacklab Activity Archive</h1>
+          <h1 className="text-3xl font-bold font-headline">Daily Hacklab Posts</h1>
         </div>
         <div className="flex flex-col items-center gap-4 my-6">
             <Skeleton className="h-10 w-full xs:w-auto sm:w-xs" />
@@ -477,13 +477,13 @@ export default function RoundupDisplay() {
   }
 
   if (errorFetchingSubmissions) {
-    return <ErrorDisplay message={errorFetchingSubmissions} details={errorDetails} title="Error Loading Activities" />;
+    return <ErrorDisplay message={errorFetchingSubmissions} details={errorDetails} title="Error Loading Posts" />;
   }
 
   return (
     <div className="space-y-8">
       <div className="text-center">
-        <h1 className="text-3xl font-bold font-headline">Daily Hacklab Activity Archive</h1>
+        <h1 className="text-3xl font-bold font-headline">Daily Hacklab Posts</h1>
       </div>
 
       <div className="flex flex-col items-center gap-4 my-6">
@@ -558,7 +558,7 @@ export default function RoundupDisplay() {
       {selectedDateForDisplay && isDateInitialized && (
         <div className="text-center mb-4">
             <p className="text-muted-foreground text-lg">
-                Viewing activities for {format(selectedDateForDisplay, "PPP", { locale: enUS })}
+                Viewing posts for {format(selectedDateForDisplay, "PPP", { locale: enUS })}
             </p>
         </div>
       )}

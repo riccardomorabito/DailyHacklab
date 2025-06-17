@@ -313,18 +313,18 @@ export async function toggleStarSubmission(
 
   logger.info(SUBMISSION_ACTIONS_CONTEXT, `toggleStarSubmission: Successfully processed for submission ID: ${submissionId} by user ${authUser.id}. New star status: ${!isCurrentlyStarred}`);
   
-  revalidatePath('/roundup');
+  revalidatePath('/posts');
   revalidatePath('/leaderboard');
   if (submission.submission_date) {
     try {
       // submission.submission_date is an ISO UTC string. parseISO handles it correctly.
       // formatISO with representation: 'date' extracts YYYY-MM-DD based on UTC.
       const subDateUTC = parseISO(submission.submission_date);
-      const pathForDate = `/roundup?date=${formatISO(subDateUTC, { representation: 'date' })}`;
+      const pathForDate = `/posts?date=${formatISO(subDateUTC, { representation: 'date' })}`;
       revalidatePath(pathForDate);
       logger.debug(SUBMISSION_ACTIONS_CONTEXT, `toggleStarSubmission: Path revalidated: ${pathForDate}`);
     } catch (e) {
-      logger.warn(SUBMISSION_ACTIONS_CONTEXT, "toggleStarSubmission: Unable to revalidate specific roundup date path", e);
+      logger.warn(SUBMISSION_ACTIONS_CONTEXT, "toggleStarSubmission: Unable to revalidate specific posts date path", e);
     }
   }
 
@@ -451,7 +451,7 @@ export async function moderateSubmission(submissionId: string, approve: boolean)
 
   logger.info(SUBMISSION_ACTIONS_CONTEXT, `moderateSubmission: Submission ${submissionId} successfully moderated (Approved: ${approve}).`);
   revalidatePath('/admin');
-  revalidatePath('/roundup');
+  revalidatePath('/posts');
   return { success: true };
 }
 
@@ -536,6 +536,6 @@ export async function deleteSubmissionByAdmin(submissionId: string): Promise<{ s
 
   logger.info(SUBMISSION_ACTIONS_CONTEXT, `deleteSubmissionByAdmin: Submission ID ${submissionId} and associated files processed for deletion.`);
   revalidatePath('/admin');
-  revalidatePath('/roundup');
+  revalidatePath('/posts');
   return { success: true };
 }
