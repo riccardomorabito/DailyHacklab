@@ -172,6 +172,18 @@ CREATE TABLE public.special_events (
   CONSTRAINT special_events_pkey PRIMARY KEY (id)
 );
 
+-- Create app_settings table (application settings)
+CREATE TABLE public.app_settings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  setting_key text NOT NULL UNIQUE,
+  setting_value text NOT NULL,
+  description text,
+  created_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT app_settings_pkey PRIMARY KEY (id),
+  CONSTRAINT app_settings_setting_key_unique UNIQUE (setting_key)
+);
+
 -- Create trigger for new user profiles
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
@@ -200,6 +212,7 @@ CREATE TRIGGER on_auth_user_created
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.submissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.special_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 
 -- Create RLS policies (basic examples - customize as needed)
 CREATE POLICY "Users can read own profile" ON public.profiles
@@ -213,6 +226,25 @@ CREATE POLICY "Users can read approved submissions" ON public.submissions
 
 CREATE POLICY "Users can create own submissions" ON public.submissions
   FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- Policies for app_settings (only admins can manage settings)
+CREATE POLICY "Admins can manage app settings" ON public.app_settings
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles 
+      WHERE profiles.id = auth.uid() 
+      AND profiles.role = 'admin'
+    )
+  );
+
+-- Special policy to allow anyone to read public registration setting
+CREATE POLICY "Anyone can read public registration setting" ON public.app_settings
+  FOR SELECT USING (setting_key = 'public_registration_enabled');
+
+-- Insert default settings
+INSERT INTO public.app_settings (setting_key, setting_value, description) VALUES
+  ('public_registration_enabled', 'false', 'Controls whether new users can see the UI to register for the application')
+ON CONFLICT (setting_key) DO NOTHING;
 ```
 
 3. **Create Storage Buckets**:

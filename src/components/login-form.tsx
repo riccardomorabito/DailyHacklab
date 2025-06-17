@@ -11,8 +11,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from '@/hooks/use-toast';
 import { useNotifications } from '@/hooks/use-notifications';
 import { LogIn, Loader2 } from 'lucide-react';
-import { PUBLIC_REGISTRATION_STORAGE_KEY } from '@/lib/config';
 import { logger } from '@/lib/logger';
+import { usePublicRegistration } from '@/hooks/use-app-settings';
 
 const LOGIN_FORM_CONTEXT = "LoginForm";
 
@@ -30,16 +30,8 @@ export default function LoginForm() {
   const router = useRouter();
   const { toast } = useToast();
   const { showWelcomeNotification, requestPermission } = useNotifications();
-  const [allowPublicRegistration, setAllowPublicRegistration] = useState(false);
+  const { enabled: allowPublicRegistration, isLoading: isLoadingRegistrationSetting } = usePublicRegistration();
   const [isSubmitting, setIsSubmitting] = useState(false); 
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedSetting = localStorage.getItem(PUBLIC_REGISTRATION_STORAGE_KEY);
-      setAllowPublicRegistration(storedSetting === 'true');
-      logger.info(LOGIN_FORM_CONTEXT, `useEffect: Public registration UI ${storedSetting === 'true' ? 'enabled' : 'disabled'}.`);
-    }
-  }, []);
 
   /**
    * Handles form submission for user login
@@ -121,7 +113,7 @@ export default function LoginForm() {
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isLoading ? 'Logging in...' : 'Login'}
           </Button>
-          {allowPublicRegistration && (
+          {!isLoadingRegistrationSetting && allowPublicRegistration && (
             <p className="text-sm text-center text-muted-foreground">
               Don't have an account?{' '}
               <Link href="/register" className="font-medium text-primary hover:underline">

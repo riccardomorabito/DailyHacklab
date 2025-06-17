@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState } from 'react';
 import RegisterForm from '@/components/register-form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertTriangle, ShieldOff } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { PUBLIC_REGISTRATION_STORAGE_KEY } from '@/lib/config';
+import { usePublicRegistration } from '@/hooks/use-app-settings';
 
 /**
  * RegisterPage component - User registration page
@@ -15,18 +14,9 @@ import { PUBLIC_REGISTRATION_STORAGE_KEY } from '@/lib/config';
  * @returns JSX element representing the registration page
  */
 export default function RegisterPage() {
-  const [allowPublicRegistration, setAllowPublicRegistration] = useState<boolean | null>(null);
+  const { enabled: allowPublicRegistration, isLoading } = usePublicRegistration();
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedSetting = localStorage.getItem(PUBLIC_REGISTRATION_STORAGE_KEY);
-      setAllowPublicRegistration(storedSetting === 'true');
-    } else {
-      setAllowPublicRegistration(false); 
-    }
-  }, []);
-
-  if (allowPublicRegistration === null) {
+  if (isLoading) {
     return (
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 flex-grow flex flex-col items-center justify-center">
         <Card className="w-full max-w-md shadow-xl">

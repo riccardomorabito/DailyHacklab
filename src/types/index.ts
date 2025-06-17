@@ -120,3 +120,27 @@ export interface SpecialEvent {
   
   // Note: isActive is typically determined dynamically, not stored, based on event_date vs current date
 }
+
+/**
+ * Represents application-wide settings stored in the database.
+ * Corresponds to the 'app_settings' table in the database.
+ */
+export interface AppSettings {
+  /** Primary Key (UUID) */
+  id: string;
+  
+  /** Setting name/key */
+  setting_key: string;
+  
+  /** Setting value (stored as text, needs parsing for booleans/numbers) */
+  setting_value: string;
+  
+  /** Optional description of the setting */
+  description?: string;
+  
+  /** Timestamp of the last update (timestamptz in DB, ISO string in TS) */
+  updated_at: string;
+  
+  /** Timestamp of when the setting was created (timestamptz in DB, ISO string in TS) */
+  created_at: string;
+}
