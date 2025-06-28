@@ -252,6 +252,22 @@ ON CONFLICT (setting_key) DO NOTHING;
    - Crea bucket `submissions` (pubblico)
    - Imposta policy RLS appropriate per upload file
 
+4. **Configura Verifica Email (Obbligatoria per Sicurezza)**:
+   
+   ⚠️ **Importante**: La verifica email è obbligatoria per sicurezza. Gli utenti devono confermare la loro email prima di accedere all'applicazione.
+
+   **Configura URL Verifica Email**:
+   - Vai su Dashboard Supabase > Authentication > URL Configuration
+   - Imposta **Site URL** al tuo dominio (es. `https://tuodominio.com` o `http://localhost:3000` per sviluppo)
+   - Configura **Redirect URLs** per includere la tua pagina di conferma (es. `https://tuodominio.com/auth/confirm`)
+   
+   ⚠️ **Attenzione**: Se non personalizzi il Site URL, Supabase non saprà dove reindirizzare gli utenti per la conferma email, e il processo di verifica fallirà.
+
+   **Personalizza Template Email**:
+   - Vai su Dashboard Supabase > Authentication > Email Templates
+   - Personalizza lo stile HTML/CSS del template "Confirm signup" secondo necessità
+   - Il template controlla l'aspetto delle email di verifica inviate agli utenti
+
 ### 4. Avvia Server Sviluppo
 
 ```bash

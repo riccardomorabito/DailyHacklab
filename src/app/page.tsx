@@ -5,7 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Zap, UploadCloud, BarChart2, Server as ServerIcon, LogIn, CalendarDays, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/use-auth";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import GridSnakeAnimationBackground from "@/components/GridSnakeAnimationBackground";
 import EventNotificationsBanner from "@/components/event-notifications-banner";
@@ -16,17 +17,41 @@ import { generateBoringAvatarDataUrl } from "@/lib/client-avatar-utils";
 const NUM_SNAKES_FOR_BACKGROUND = 12; // Desired number of snakes/avatars in the background
 
 /**
- * HomePage component - Main landing page of the application
+ * HomePageContent component - Main landing page content
  * Shows different content based on authentication status:
  * - Authenticated users: Welcome message with navigation cards
  * - Non-authenticated users: Login prompt and public leaderboard link
  * Features animated background with top user avatars
- * @returns JSX element representing the home page
+ * @returns JSX element representing the home page content
  */
-export default function HomePage() {
+function HomePageContent() {
   const { currentUser, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [topUserAvatarUrls, setTopUserAvatarUrls] = useState<(string | null)[]>(Array(NUM_SNAKES_FOR_BACKGROUND).fill(null));
   const [loadingAvatars, setLoadingAvatars] = useState(true);
+
+  // Check for email confirmation code and redirect to confirmation page
+  useEffect(() => {
+    const code = searchParams.get('code');
+    const token = searchParams.get('token');
+    const type = searchParams.get('type');
+    const error = searchParams.get('error');
+    const errorCode = searchParams.get('error_code');
+    const errorDescription = searchParams.get('error_description');
+    
+    if (code || token || error) {
+      // Use window.location.replace to avoid React router issues
+      if (code) {
+        window.location.replace(`/auth/confirm?code=${code}&type=${type || 'signup'}`);
+      } else if (token) {
+        window.location.replace(`/auth/confirm?token=${token}&type=${type || 'signup'}`);
+      } else if (error) {
+        window.location.replace(`/auth/confirm?error=${error}&error_code=${errorCode || ''}&error_description=${errorDescription || ''}`);
+      }
+      return;
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     /**
@@ -223,5 +248,26 @@ export default function HomePage() {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * HomePage component - Main page with Suspense wrapper
+ * @returns JSX element representing the home page with proper error boundaries
+ */
+export default function HomePage() {
+  return (
+    <Suspense fallback={
+      <div className="relative isolate min-h-[calc(100vh-theme(spacing.16)-theme(spacing.20))] md:min-h-[calc(100vh-theme(spacing.16)-theme(spacing.20))] flex flex-col justify-center flex-grow">
+        <div className="relative z-10 container mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
+          <div className="flex flex-col items-center justify-center py-12">
+            <Zap className="h-16 w-16 text-primary animate-pulse" />
+            <p className="text-muted-foreground mt-4">Loading...</p>
+          </div>
+        </div>
+      </div>
+    }>
+      <HomePageContent />
+    </Suspense>
   );
 }

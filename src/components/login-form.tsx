@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,28 +10,50 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useNotifications } from '@/hooks/use-notifications';
-import { LogIn, Loader2 } from 'lucide-react';
+import { LogIn, Loader2, CheckCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { logger } from '@/lib/logger';
 import { usePublicRegistration } from '@/hooks/use-app-settings';
 
 const LOGIN_FORM_CONTEXT = "LoginForm";
 
 /**
- * LoginForm component - User authentication interface
+ * LoginFormContent component - User authentication interface
  * Provides email/password login functionality with registration link
  * Features form validation, loading states, and notification integration
  * Supports conditional public registration based on application settings
  * @returns JSX element representing the login form
  */
-export default function LoginForm() {
+function LoginFormContent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login, loading: authLoading } = useAuth();
+  const { login, loading: authLoading, currentUser } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const { showWelcomeNotification, requestPermission } = useNotifications();
   const { enabled: allowPublicRegistration, isLoading: isLoadingRegistrationSetting } = usePublicRegistration();
-  const [isSubmitting, setIsSubmitting] = useState(false); 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+
+  // Redirect if user is already logged in
+  useEffect(() => {
+    if (currentUser) {
+      router.push('/');
+    }
+  }, [currentUser, router]);
+
+  // Check if user was redirected after email confirmation
+  useEffect(() => {
+    const confirmed = searchParams.get('confirmed');
+    if (confirmed === 'true') {
+      setShowConfirmation(true);
+      // Clear the URL parameter without causing re-renders
+      const url = new URL(window.location.href);
+      url.searchParams.delete('confirmed');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [searchParams]);
 
   /**
    * Handles form submission for user login
@@ -59,8 +81,7 @@ export default function LoginForm() {
         }
       }, 1000);
       
-      router.push('/');
-      router.refresh(); 
+      window.location.href = '/';
     } else {
       logger.error(LOGIN_FORM_CONTEXT, `handleSubmit: Login failed for ${email} without a specific error from Supabase.`);
       toast({ title: "Login Failed", description: "An unknown error occurred.", variant: "destructive"});
@@ -77,6 +98,16 @@ export default function LoginForm() {
         </CardTitle>
         <CardDescription>Enter your email and password to access Daily Hacklab.</CardDescription>
       </CardHeader>
+      {showConfirmation && (
+        <div className="px-6 pb-4">
+          <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
+            <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+            <AlertDescription className="text-green-700 dark:text-green-300">
+              <strong>Email verified successfully!</strong> You can now log in to your account.
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -124,5 +155,26 @@ export default function LoginForm() {
         </CardFooter>
       </form>
     </Card>
+  );
+}
+
+/**
+ * LoginForm component - Main component with Suspense wrapper
+ * @returns JSX element representing the login form with proper error boundaries
+ */
+export default function LoginForm() {
+  return (
+    <Suspense fallback={
+      <Card className="w-full max-w-md shadow-xl">
+        <CardHeader>
+          <CardTitle className="text-2xl font-headline flex items-center">
+            <Loader2 className="mr-2 h-6 w-6 text-primary animate-spin" /> Loading
+          </CardTitle>
+          <CardDescription>Please wait...</CardDescription>
+        </CardHeader>
+      </Card>
+    }>
+      <LoginFormContent />
+    </Suspense>
   );
 }

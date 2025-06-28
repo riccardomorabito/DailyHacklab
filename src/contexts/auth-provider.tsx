@@ -244,48 +244,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    */
   useEffect(() => {
     logger.info(AUTH_PROVIDER_CONTEXT, 'useEffect (onAuthStateChange): Setting up onAuthStateChange listener.');
-    setLoading(true); 
+    setLoading(true);
     let mounted = true;
-  
+
+    // Timeout fallback to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      if (mounted) {
+        logger.warn(AUTH_PROVIDER_CONTEXT, 'useEffect: Authentication initialization timeout after 5 seconds, stopping loading state.');
+        setLoading(false);
+      }
+    }, 5000);
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event: AuthChangeEvent, session: Session | null) => {
-        if (!mounted) {
-          logger.info(AUTH_PROVIDER_CONTEXT, 'onAuthStateChange: Component unmounted, ignoring event.');
-          return;
-        }
-        logger.info(AUTH_PROVIDER_CONTEXT, 'onAuthStateChange: Event received:', event, 'Session present:', !!session);
+      async (event, session) => {
+        if (!mounted) return;
+        logger.info(AUTH_PROVIDER_CONTEXT, `onAuthStateChange event: ${event}`);
         
-        if (session?.user) {
+        if (session) {
           const userProfile = await fetchUserProfile(session.user);
-          if (!mounted) {
-            logger.info(AUTH_PROVIDER_CONTEXT, 'onAuthStateChange: Component unmounted during profile retrieval.');
-            return;
-          }
-          if (userProfile) {
-            setCurrentUser(userProfile);
-            setIsAdmin(userProfile.role === 'admin');
-            logger.info(AUTH_PROVIDER_CONTEXT, `onAuthStateChange: State updated. User: ${userProfile.name}, Admin: ${userProfile.role === 'admin'}`);
-          } else {
-            setCurrentUser(null);
-            setIsAdmin(false);
-            logger.warn(AUTH_PROVIDER_CONTEXT, `onAuthStateChange: State reset (profile retrieval failed or returned null).`);
-          }
+          setCurrentUser(userProfile);
+          setIsAdmin(userProfile?.role === 'admin');
         } else {
           setCurrentUser(null);
           setIsAdmin(false);
-          logger.info(AUTH_PROVIDER_CONTEXT, `onAuthStateChange: State reset (no session or user logged out).`);
         }
         
-        if (mounted) {
-          setLoading(false);
-          logger.info(AUTH_PROVIDER_CONTEXT, 'onAuthStateChange: AuthProvider loading state set to false.');
-        }
+        setLoading(false);
+        clearTimeout(timeoutId);
       }
     );
-  
+
     return () => {
       mounted = false;
-      logger.info(AUTH_PROVIDER_CONTEXT, 'useEffect (onAuthStateChange): Unsubscribing from onAuthStateChange.');
+      clearTimeout(timeoutId);
       subscription?.unsubscribe();
     };
   }, [supabase, fetchUserProfile]);
@@ -298,6 +289,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    */
   const login = useCallback(async (email: string, password?: string) => {
     logger.info(AUTH_PROVIDER_CONTEXT, 'login: Login attempt for email:', email);
+    
+    // Ensure any previous session is cleared before a new login attempt
+    await supabase.auth.signOut();
+    logger.info(AUTH_PROVIDER_CONTEXT, 'login: Cleared any existing session before new login.');
+
     const { data, error } = await supabase.auth.signInWithPassword({ email, password: password! });
     if (error) {
       logger.error(AUTH_PROVIDER_CONTEXT, 'login: Login error:', error.message);

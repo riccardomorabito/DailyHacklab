@@ -12,10 +12,11 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useNotifications } from '@/hooks/use-notifications';
-import { UserPlus, Upload, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { UserPlus, Upload, Image as ImageIcon, Loader2, Mail, Clock, ArrowLeft } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import NextImage from 'next/image';
-import { createClient } from '@/lib/supabase/client'; 
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 import { logger } from '@/lib/logger';
 import ImageCropDialog from '@/components/image-crop-dialog';
 
@@ -97,8 +98,10 @@ export default function RegisterForm() {
   const router = useRouter();
   const { toast } = useToast();
   const { showWelcomeNotification, requestPermission } = useNotifications();
-  const [isSubmittingForm, setIsSubmittingForm] = useState(false); 
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null); 
+  const [isSubmittingForm, setIsSubmittingForm] = useState(false);
+  const [showEmailVerification, setShowEmailVerification] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState<string>('');
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const avatarFileRef = useRef<HTMLInputElement>(null);
   
   // Crop dialog state
@@ -234,7 +237,8 @@ export default function RegisterForm() {
         toast({ title: "Registration Failed", description: error.message || "The email might already be in use or an error occurred.", variant: "destructive" });
       } else {
         logger.info(REGISTER_FORM_CONTEXT, "onSubmit: Registration submitted successfully for:", data.email);
-        toast({ title: "Registration Submitted!", description: `Check your email to confirm registration. You can then log in.` });
+        setRegisteredEmail(data.email);
+        setShowEmailVerification(true);
         
         // Request notification permission for future use
         setTimeout(async () => {
@@ -242,10 +246,9 @@ export default function RegisterForm() {
         }, 2000);
         
         reset();
-        setAvatarPreview(null); 
+        setAvatarPreview(null);
         setCroppedFile(null); // Clear cropped file state
-        if (avatarFileRef.current) avatarFileRef.current.value = ""; 
-        router.push('/login'); 
+        if (avatarFileRef.current) avatarFileRef.current.value = "";
       }
     } catch (e: any) {
       logger.error(REGISTER_FORM_CONTEXT, "onSubmit: Error during avatar operation or registration:", e.message);
@@ -255,7 +258,49 @@ export default function RegisterForm() {
     }
   };
 
-  const isLoading = authLoading || isSubmittingForm; 
+  const isLoading = authLoading || isSubmittingForm;
+
+  // Show email verification waiting screen
+  if (showEmailVerification) {
+    return (
+      <Card className="w-full max-w-md shadow-xl">
+        <CardHeader className="text-center">
+          <Mail className="mx-auto h-12 w-12 text-primary mb-3" />
+          <CardTitle className="text-2xl font-headline">Check Your Email</CardTitle>
+          <CardDescription>
+            We've sent a verification link to <strong>{registeredEmail}</strong>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4 text-center">
+          <div className="flex items-center justify-center space-x-2 text-muted-foreground">
+            <Clock className="h-4 w-4 animate-pulse" />
+            <p className="text-sm">Waiting for email confirmation...</p>
+          </div>
+          <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+            <p className="text-sm text-blue-700 dark:text-blue-300">
+              <strong>Next Steps:</strong>
+            </p>
+            <ol className="text-sm text-blue-600 dark:text-blue-400 mt-2 space-y-1 text-left">
+              <li>1. Check your email inbox</li>
+              <li>2. Click the verification link</li>
+              <li>3. Return here to log in</li>
+            </ol>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Didn't receive an email? Check your spam folder or try registering again.
+          </p>
+        </CardContent>
+        <CardFooter className="flex justify-center">
+          <Link href="/login" passHref>
+            <Button className="flex items-center gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Go to Login
+            </Button>
+          </Link>
+        </CardFooter>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full max-w-md shadow-xl">

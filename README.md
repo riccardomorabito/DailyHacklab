@@ -252,6 +252,22 @@ ON CONFLICT (setting_key) DO NOTHING;
    - Create `submissions` bucket (public)
    - Set up appropriate RLS policies for file uploads
 
+4. **Configure Email Verification (Required for Security)**:
+   
+   ⚠️ **Important**: Email verification is mandatory for security. Users must confirm their email before accessing the application.
+
+   **Configure Email Verification URL**:
+   - Go to Supabase Dashboard > Authentication > URL Configuration
+   - Set **Site URL** to your domain (e.g., `https://yourdomain.com` or `http://localhost:3000` for development)
+   - Configure **Redirect URLs** to include your confirmation page (e.g., `https://yourdomain.com/auth/confirm`)
+   
+   ⚠️ **Alert**: If you don't customize the Site URL, Supabase won't know where to redirect users for email confirmation, and the verification process will fail.
+
+   **Customize Email Templates**:
+   - Go to Supabase Dashboard > Authentication > Email Templates
+   - Customize the "Confirm signup" template's HTML/CSS styling as needed
+   - The template controls the appearance of verification emails sent to users
+
 ### 4. Run Development Server
 
 ```bash
