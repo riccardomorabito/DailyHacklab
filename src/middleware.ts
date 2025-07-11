@@ -103,52 +103,136 @@ export async function middleware(request: NextRequest) {
     {
       cookies: {
         get(name: string) {
-          return request.cookies.get(name)?.value;
+          const cookie = request.cookies.get(name);
+          // Only log main auth token, not the fragmented parts to reduce noise
+          if (name.includes('auth-token') && !name.includes('.')) {
+            logger.debug(MIDDLEWARE_CONTEXT, `Auth token: ${cookie?.value ? 'found' : 'not found'}`);
+          }
+          return cookie?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({
-            name,
-            value,
-            ...options,
-          });
+          // Create new response to ensure cookie changes are applied
           response = NextResponse.next({
             request: {
               headers: request.headers,
             },
           });
+          
+          // Apply security headers again since we're creating a new response
+          Object.entries(SECURITY_HEADERS).forEach(([key, headerValue]) => {
+            response.headers.set(key, headerValue);
+          });
+          
           response.cookies.set({
             name,
             value,
             ...options,
+            // Ensure cookies work on Vercel Edge Functions
+            secure: true,
+            sameSite: 'lax',
+            httpOnly: name.includes('auth-token') || name.includes('refresh-token'),
           });
         },
         remove(name: string, options: CookieOptions) {
-          request.cookies.set({
-            name,
-            value: '',
-            ...options,
-          });
           response = NextResponse.next({
             request: {
               headers: request.headers,
             },
           });
+          
+          // Apply security headers again
+          Object.entries(SECURITY_HEADERS).forEach(([key, headerValue]) => {
+            response.headers.set(key, headerValue);
+          });
+          
           response.cookies.set({
             name,
             value: '',
             ...options,
+            expires: new Date(0),
+            maxAge: 0,
           });
         },
       },
     }
   );
 
-  // Attempt to refresh session for every request
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session) {
-    // logger.debug(MIDDLEWARE_CONTEXT, "Session refreshed/validated in middleware for user:", session.user.id);
-  } else {
-    // logger.debug(MIDDLEWARE_CONTEXT, "No active session found in middleware.");
+  // Server-side authentication check with secure cookie handling
+  let isAuthenticated = false;
+  
+  try {
+    // Use getUser() for secure authentication check (recommended by Supabase)
+    const { data: { user }, error } = await supabase.auth.getUser();
+    
+    if (user && !error) {
+      logger.debug(MIDDLEWARE_CONTEXT, `Authenticated user: ${user.id}`);
+      isAuthenticated = true;
+    } else if (error) {
+      logger.debug(MIDDLEWARE_CONTEXT, `Auth check failed: ${error.message}`);
+      // Fallback: check for auth cookies (even if fragmented)
+      const authCookiePattern = /sb-.*-auth-token/;
+      const allCookies = request.cookies.getAll();
+      const hasAuthCookie = allCookies.some(cookie => authCookiePattern.test(cookie.name));
+      
+      if (hasAuthCookie) {
+        logger.debug(MIDDLEWARE_CONTEXT, "Found auth cookies, treating as authenticated");
+        isAuthenticated = true;
+      }
+    }
+  } catch (error) {
+    logger.error(MIDDLEWARE_CONTEXT, `Failed to authenticate user: ${error}`);
+    isAuthenticated = false;
+  }
+
+  // Server-side protection for all sensitive routes (security-first approach)
+  
+  // Define protected routes that require server-side authentication
+  const protectedRoutes = [
+    '/posts',
+    '/create-post',
+    '/events',
+    '/dashboard',
+    '/profile',
+    '/settings',
+    '/admin',
+    '/server-farm'
+  ];
+  
+  // Define public routes that do not require authentication
+  const publicRoutes = ['/login', '/register', '/auth/callback', '/auth/confirm'];
+  
+  // Define routes handled completely by client (public routes)
+  const clientHandledRoutes = ['/', '/leaderboard'];
+
+  const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
+  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
+  const isClientHandledRoute = clientHandledRoutes.some(route => pathname === route);
+
+  // Skip middleware processing for client-handled routes
+  if (isClientHandledRoute) {
+    logger.debug(MIDDLEWARE_CONTEXT, `Client-handled route: ${pathname}`);
+    return response;
+  }
+
+  // Redirect unauthenticated users from protected routes (server-side security)
+  if (!isAuthenticated && isProtectedRoute) {
+    logger.info(MIDDLEWARE_CONTEXT, `User not authenticated. Redirecting from ${pathname} to /login.`);
+    const redirectUrl = new URL('/login', request.url);
+    redirectUrl.searchParams.set('redirectedFrom', pathname);
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  // Redirect authenticated users from auth pages
+  if (isAuthenticated && (pathname === '/login' || pathname === '/register')) {
+    const redirectedFrom = request.nextUrl.searchParams.get('redirectedFrom');
+    
+    if (redirectedFrom && protectedRoutes.some(route => redirectedFrom.startsWith(route))) {
+      logger.info(MIDDLEWARE_CONTEXT, `User authenticated. Redirecting from ${pathname} back to ${redirectedFrom}.`);
+      return NextResponse.redirect(new URL(redirectedFrom, request.url));
+    } else {
+      logger.info(MIDDLEWARE_CONTEXT, `User authenticated. Redirecting from ${pathname} to home page.`);
+      return NextResponse.redirect(new URL('/', request.url));
+    }
   }
 
   return response;
@@ -156,17 +240,32 @@ export async function middleware(request: NextRequest) {
 
 /**
  * Middleware configuration specifying which routes should be processed
- * Excludes static files, images, and Next.js internal files from processing
+ * Only processes specific routes that need authentication checks
+ * Excludes static files, images, API routes, and client-handled routes
  */
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
+     * Server-side protection for all sensitive routes (security-first approach)
+     * - All protected routes require server-side auth checks
+     * - Auth routes need redirect logic
+     * - Reduced cookie fragmentation with optimized JWT
+     *
+     * Excludes only:
+     * - / (home page - public)
+     * - /leaderboard (public page)
+     * - Static files and assets
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/posts/:path*',
+    '/create-post/:path*',
+    '/events/:path*',
+    '/dashboard/:path*',
+    '/profile/:path*',
+    '/settings/:path*',
+    '/admin/:path*',
+    '/server-farm/:path*',
+    '/login',
+    '/register',
+    '/auth/:path*'
   ],
 };

@@ -2,15 +2,15 @@
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger';
 import { revalidatePath } from 'next/cache';
-import { nowISOEuropean, formatDateForEuropeanTimezone } from '@/lib/utils';
+
 import { getActiveSpecialEventForDate } from '@/actions/events';
 import { fileTypeFromBuffer } from 'file-type';
 import validator from 'validator';
 import sharp from 'sharp';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 
-/** Context identifier for logging content-related operations */
-const CONTENT_ACTIONS_CONTEXT = "ContentActions";
+/** Context identifier for logging post-related operations */
+const POST_ACTIONS_CONTEXT = "PostActions";
 
 // Security configurations
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
@@ -18,8 +18,8 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_TEXT_LENGTH = 1000;
 
 // Rate limiters
-const contentSubmissionLimiter = new RateLimiterMemory({
-  keyPrefix: 'content_submit',
+const postCreationLimiter = new RateLimiterMemory({
+  keyPrefix: 'post_create',
   points: 10,
   duration: 60 * 60, // 1 hour
   blockDuration: 10 * 60, // 10 minutes
@@ -47,7 +47,8 @@ function validateAndSanitizeText(input: string | null | undefined, maxLength: nu
     return { isValid: false, error: 'Input contains potentially unsafe content' };
   }
   
-  const sanitized = validator.escape(input.replace(/<[^>]*>/g, ''));
+  // Sanitize by removing any tags, but don't escape entities to allow special characters.
+  const sanitized = input.replace(/<[^>]*>/g, '');
   return { isValid: true, sanitized };
 }
 
@@ -94,7 +95,7 @@ async function processSecureImage(file: File): Promise<{ success: boolean; proce
       mimeType: 'image/jpeg'
     };
   } catch (error: any) {
-    logger.error(CONTENT_ACTIONS_CONTEXT, `Error processing image: ${error.message}`);
+    logger.error(POST_ACTIONS_CONTEXT, `Error processing image: ${error.message}`);
     return { success: false, error: 'Failed to process image' };
   }
 }
@@ -109,7 +110,7 @@ function generateSecureFilename(originalFilename: string, userId: string): strin
   const timestamp = Date.now();
   const randomComponent = Math.random().toString(36).substring(2, 15);
   const sanitizedUserId = userId.replace(/[^a-zA-Z0-9]/g, '').substring(0, 16);
-  return `submission_${sanitizedUserId}_${timestamp}_${randomComponent}.jpg`;
+  return `post_${sanitizedUserId}_${timestamp}_${randomComponent}.jpg`;
 }
 
 /**
@@ -129,7 +130,7 @@ async function checkRateLimit(limiter: RateLimiterMemory, key: string): Promise<
 }
 
 // Points system configuration
-const BASE_SUBMISSION_POINTS = 50; // Base points for posting
+const BASE_POST_POINTS = 50; // Base points for posting
 const BONUS_POINTS_PER_STAR = 10;  // Additional points for stars (already implemented)
 
 /**
@@ -148,23 +149,23 @@ function withTimeout<T>(promiseFunction: () => Promise<T>, timeoutMs: number = 1
 }
 
 /**
- * Awards points to user for approved submission
+ * Awards points to user for approved post
  * @param {string} userId - The user ID to award points to
- * @param {Date} submissionDate - The date of the submission to check for special events
+ * @param {Date} postDate - The date of the post to check for special events
  * @param {any} supabaseAdmin - Admin client for database operations
  * @returns {Promise<{ pointsAwarded?: number; error?: string }>} Promise with points awarded or error
  */
-async function awardSubmissionPoints(userId: string, submissionDate: Date, supabaseAdmin: any): Promise<{ pointsAwarded?: number; error?: string }> {
+async function awardPostPoints(userId: string, postDate: Date, supabaseAdmin: any): Promise<{ pointsAwarded?: number; error?: string }> {
   try {
-    // Check for special events on submission date
-    const { data: specialEvent, error: eventError } = await getActiveSpecialEventForDate(submissionDate);
+    // Check for special events on post date
+    const { data: specialEvent, error: eventError } = await getActiveSpecialEventForDate(postDate);
     
     if (eventError) {
-      logger.warn(CONTENT_ACTIONS_CONTEXT, `awardSubmissionPoints: Could not check for special events: ${eventError}`);
+      logger.warn(POST_ACTIONS_CONTEXT, `awardPostPoints: Could not check for special events: ${eventError}`);
     }
     
     // Calculate total points: base points + any special event bonus
-    const basePoints = BASE_SUBMISSION_POINTS;
+    const basePoints = BASE_POST_POINTS;
     const bonusPoints = specialEvent?.bonus_points || 0;
     const totalPoints = basePoints + bonusPoints;
     
@@ -176,7 +177,7 @@ async function awardSubmissionPoints(userId: string, submissionDate: Date, supab
       .single();
     
     if (profileError) {
-      logger.error(CONTENT_ACTIONS_CONTEXT, `awardSubmissionPoints: Error fetching user profile: ${profileError.message}`);
+      logger.error(POST_ACTIONS_CONTEXT, `awardPostPoints: Error fetching user profile: ${profileError.message}`);
       return { error: `Error fetching user profile: ${profileError.message}` };
     }
     
@@ -190,29 +191,29 @@ async function awardSubmissionPoints(userId: string, submissionDate: Date, supab
       .eq('id', userId);
     
     if (updateError) {
-      logger.error(CONTENT_ACTIONS_CONTEXT, `awardSubmissionPoints: Error updating user score: ${updateError.message}`);
+      logger.error(POST_ACTIONS_CONTEXT, `awardPostPoints: Error updating user score: ${updateError.message}`);
       return { error: `Error updating user score: ${updateError.message}` };
     }
     
-    logger.info(CONTENT_ACTIONS_CONTEXT, `awardSubmissionPoints: Awarded ${totalPoints} points to user ${userId} (Base: ${basePoints}, Bonus: ${bonusPoints}, Special Event: ${specialEvent?.name || 'None'})`);
+    logger.info(POST_ACTIONS_CONTEXT, `awardPostPoints: Awarded ${totalPoints} points to user ${userId} (Base: ${basePoints}, Bonus: ${bonusPoints}, Special Event: ${specialEvent?.name || 'None'})`);
     
     return { pointsAwarded: totalPoints };
   } catch (e: any) {
-    logger.error(CONTENT_ACTIONS_CONTEXT, `awardSubmissionPoints: Unexpected error: ${e.message}`);
+    logger.error(POST_ACTIONS_CONTEXT, `awardPostPoints: Unexpected error: ${e.message}`);
     return { error: `Unexpected error awarding points: ${e.message}` };
   }
 }
 
 /**
- * Submits content with photos and optional summary.
+ * Creates a new post with photos and an optional summary.
  * Handles file validation, image processing, secure upload, and database insertion.
- * Auto-approves submissions from admin users and awards points accordingly.
+ * Auto-approves posts from admin users and awards points accordingly.
  * @param {FormData} formData - Form data containing photos and optional summary.
  * @param {string} [clientIP] - Optional client IP address for rate limiting.
- * @returns {Promise<{ success: boolean; error?: string, submissionId?: string }>} Submission result with success status, optional error message, and submission ID.
+ * @returns {Promise<{ success: boolean; error?: string, postId?: string }>} Creation result with success status, optional error message, and post ID.
  */
-export async function submitContentAction(formData: FormData, clientIP?: string): Promise<{ success: boolean; error?: string, submissionId?: string }> {
-  logger.info(CONTENT_ACTIONS_CONTEXT, "Starting secure content submission");
+export async function createPostAction(formData: FormData, clientIP?: string): Promise<{ success: boolean; error?: string, postId?: string }> {
+  logger.info(POST_ACTIONS_CONTEXT, "Starting secure post creation");
   
   return withTimeout(async () => {
     const supabase = await createServerSupabaseClient();
@@ -220,33 +221,33 @@ export async function submitContentAction(formData: FormData, clientIP?: string)
     // Authenticate user
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
     if (authError || !authUser) {
-      logger.error(CONTENT_ACTIONS_CONTEXT, "Authentication failed", authError?.message);
+      logger.error(POST_ACTIONS_CONTEXT, "Authentication failed", authError?.message);
       return { success: false, error: `Authentication required: ${authError?.message || 'No user session'}` };
     }
 
     // Apply rate limiting
     const rateLimitKey = clientIP || authUser.id;
-    const rateLimitResult = await checkRateLimit(contentSubmissionLimiter, rateLimitKey);
+    const rateLimitResult = await checkRateLimit(postCreationLimiter, rateLimitKey);
     if (!rateLimitResult.success) {
-      logger.warn(CONTENT_ACTIONS_CONTEXT, `Rate limit exceeded for ${rateLimitKey}`);
+      logger.warn(POST_ACTIONS_CONTEXT, `Rate limit exceeded for ${rateLimitKey}`);
       return { success: false, error: rateLimitResult.error };
     }
 
-    logger.info(CONTENT_ACTIONS_CONTEXT, `Authenticated user: ${authUser.id}`);
+    logger.info(POST_ACTIONS_CONTEXT, `Authenticated user: ${authUser.id}`);
 
     // Check if user is admin for auto-approval
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, name, avatar_url')
       .eq('id', authUser.id)
       .single();
 
     let isAdminUser = false;
     if (profile && !profileError && profile.role === 'admin') {
       isAdminUser = true;
-      logger.info(CONTENT_ACTIONS_CONTEXT, "Admin user detected - submission will be auto-approved");
+      logger.info(POST_ACTIONS_CONTEXT, "Admin user detected - post will be auto-approved");
     } else if (profileError) {
-      logger.warn(CONTENT_ACTIONS_CONTEXT, "Could not check admin status:", profileError.message);
+      logger.warn(POST_ACTIONS_CONTEXT, "Could not check admin status:", profileError.message);
     }
 
     // Validate and sanitize summary
@@ -272,19 +273,19 @@ export async function submitContentAction(formData: FormData, clientIP?: string)
     // Validate that we have photos
     const validFiles = photoFiles.filter(file => file instanceof File && file.size > 0);
     if (validFiles.length === 0) {
-      logger.warn(CONTENT_ACTIONS_CONTEXT, "No valid photos provided");
+      logger.warn(POST_ACTIONS_CONTEXT, "No valid photos provided");
       return { success: false, error: 'At least one valid photo is required' };
     }
 
-    logger.info(CONTENT_ACTIONS_CONTEXT, `Processing ${validFiles.length} photo files`);
+    logger.info(POST_ACTIONS_CONTEXT, `Processing ${validFiles.length} photo files`);
 
     // Initialize admin client for storage operations
     let supabaseAdmin;
     try {
       supabaseAdmin = createAdminClient();
-      logger.info(CONTENT_ACTIONS_CONTEXT, "Supabase Admin Client created successfully");
+      logger.info(POST_ACTIONS_CONTEXT, "Supabase Admin Client created successfully");
     } catch (e: any) {
-      logger.error(CONTENT_ACTIONS_CONTEXT, "Failed to create Supabase Admin Client:", e.message);
+      logger.error(POST_ACTIONS_CONTEXT, "Failed to create Supabase Admin Client:", e.message);
       return { success: false, error: `Server configuration error. Please contact support: ${e.message}` };
     }
 
@@ -293,115 +294,109 @@ export async function submitContentAction(formData: FormData, clientIP?: string)
     
     for (let i = 0; i < validFiles.length; i++) {
       const file = validFiles[i];
-      logger.debug(CONTENT_ACTIONS_CONTEXT, `Processing file ${i + 1}/${validFiles.length}: ${file.name}`);
+      logger.debug(POST_ACTIONS_CONTEXT, `Processing file ${i + 1}/${validFiles.length}: ${file.name}`);
 
       // Validate file
       const validation = await validateFileUpload(file);
       if (!validation.isValid) {
-        logger.warn(CONTENT_ACTIONS_CONTEXT, `File validation failed for ${file.name}: ${validation.error}`);
+        logger.warn(POST_ACTIONS_CONTEXT, `File validation failed for ${file.name}: ${validation.error}`);
         return { success: false, error: `File "${file.name}" failed validation: ${validation.error}` };
       }
 
       // Process image securely
       const processResult = await processSecureImage(file);
       if (!processResult.success) {
-        logger.error(CONTENT_ACTIONS_CONTEXT, `Image processing failed for ${file.name}: ${processResult.error}`);
+        logger.error(POST_ACTIONS_CONTEXT, `Image processing failed for ${file.name}: ${processResult.error}`);
         return { success: false, error: `Failed to process image "${file.name}": ${processResult.error}` };
       }
 
       // Generate secure filename and upload
       const secureFilename = generateSecureFilename(file.name, authUser.id);
-      const storagePath = `submissions/users/${authUser.id}/${secureFilename}`;
+      const storagePath = `users/${authUser.id}/${secureFilename}`;
 
       const { error: uploadError } = await supabaseAdmin.storage
-        .from('submissions')
+        .from('posts')
         .upload(storagePath, processResult.processedBuffer!, {
           contentType: processResult.mimeType,
           upsert: true
         });
 
       if (uploadError) {
-        logger.error(CONTENT_ACTIONS_CONTEXT, `Upload failed for ${file.name}:`, uploadError.message);
+        logger.error(POST_ACTIONS_CONTEXT, `Upload failed for ${file.name}:`, uploadError.message);
         
         if (uploadError.message.includes("Bucket not found")) {
-          return { success: false, error: `Upload error for "${file.name}": Storage bucket 'submissions' not found. Please contact support.` };
+          return { success: false, error: `Upload error for "${file.name}": Storage bucket 'posts' not found. Please contact support.` };
         }
         return { success: false, error: `Upload failed for "${file.name}": ${uploadError.message}` };
       }
 
-      // Get public URL
-      const { data: publicUrlData } = supabaseAdmin.storage
-        .from('submissions')
-        .getPublicUrl(storagePath);
-
-      if (publicUrlData?.publicUrl) {
-        photoUrls.push(publicUrlData.publicUrl);
-        logger.info(CONTENT_ACTIONS_CONTEXT, `File uploaded successfully: ${file.name} -> ${publicUrlData.publicUrl}`);
-      } else {
-        logger.warn(CONTENT_ACTIONS_CONTEXT, `File uploaded but failed to get public URL: ${file.name}`);
-      }
+      // The path is what we store in the DB for private buckets.
+      photoUrls.push(storagePath);
+      logger.info(POST_ACTIONS_CONTEXT, `File uploaded successfully: ${file.name} -> path: ${storagePath}`);
     }
 
   if (photoUrls.length === 0 && photoFiles.some(f => f instanceof File && f.size > 0)) {
-     logger.error(CONTENT_ACTIONS_CONTEXT, "submitContentAction: Failed to retrieve public URLs for any uploaded photos.");
+     logger.error(POST_ACTIONS_CONTEXT, "createPostAction: Failed to retrieve public URLs for any uploaded photos.");
      return { success: false, error: "Error processing uploaded photos (URL generation failed)." };
   }
    if (photoUrls.length === 0) { // This case also covers when no valid files were actually processed
-     logger.error(CONTENT_ACTIONS_CONTEXT, "submitContentAction: No photo URLs generated.");
+     logger.error(POST_ACTIONS_CONTEXT, "createPostAction: No photo URLs generated.");
      return { success: false, error: "No valid photos were processed successfully." };
   }
 
-  const submissionData = {
+  const postData = {
     user_id: authUser.id,
+    user_name: profile?.name || authUser.email,
+    user_avatar_url: profile?.avatar_url || null,
     photo_urls: photoUrls,
     summary: sanitizedSummary || undefined,
-    submission_date: nowISOEuropean(),
+    submission_date: new Date().toISOString(),
     approved: isAdminUser ? true : null,
     stars_received: 0,
   };
-  logger.debug(CONTENT_ACTIONS_CONTEXT, "submitContentAction: Submission data ready for insertion:", submissionData);
+  logger.debug(POST_ACTIONS_CONTEXT, "createPostAction: Post data ready for insertion:", postData);
 
-  const { data: newSubmission, error: insertError } = await supabaseAdmin
-    .from('submissions')
-    .insert(submissionData)
+  const { data: newPost, error: insertError } = await supabaseAdmin
+    .from('posts')
+    .insert(postData)
     .select('id')
     .single();
 
   if (insertError) {
-    logger.error(CONTENT_ACTIONS_CONTEXT, 'submitContentAction: Error inserting submission into DB:', insertError.message);
-    return { success: false, error: `Error saving submission: ${insertError.message}` };
+    logger.error(POST_ACTIONS_CONTEXT, 'createPostAction: Error inserting post into DB:', insertError.message);
+    return { success: false, error: `Error saving post: ${insertError.message}` };
   }
 
-  if (!newSubmission || !newSubmission.id) {
-     logger.error(CONTENT_ACTIONS_CONTEXT, 'submitContentAction: Submission insertion did not return an ID.');
-    return { success: false, error: "Error saving submission, ID not generated." };
+  if (!newPost || !newPost.id) {
+     logger.error(POST_ACTIONS_CONTEXT, 'createPostAction: Post insertion did not return an ID.');
+    return { success: false, error: "Error saving post, ID not generated." };
   }
 
-  // Award points if submission is auto-approved (admin users)
-  if (isAdminUser && submissionData.approved) {
-    const submissionDate = new Date(submissionData.submission_date);
-    const { pointsAwarded, error: pointsError } = await awardSubmissionPoints(authUser.id, submissionDate, supabaseAdmin);
+  // Award points if post is auto-approved (admin users)
+  if (isAdminUser && postData.approved) {
+    const postDate = new Date(postData.submission_date);
+    const { pointsAwarded, error: pointsError } = await awardPostPoints(authUser.id, postDate, supabaseAdmin);
     
     if (pointsError) {
-      logger.warn(CONTENT_ACTIONS_CONTEXT, `submitContentAction: Error awarding points for auto-approved submission: ${pointsError}`);
-      // Don't fail the submission, just warn
+      logger.warn(POST_ACTIONS_CONTEXT, `createPostAction: Error awarding points for auto-approved post: ${pointsError}`);
+      // Don't fail the post, just warn
     } else if (pointsAwarded) {
-      logger.info(CONTENT_ACTIONS_CONTEXT, `submitContentAction: Awarded ${pointsAwarded} points to admin user ${authUser.id} for auto-approved submission.`);
+      logger.info(POST_ACTIONS_CONTEXT, `createPostAction: Awarded ${pointsAwarded} points to admin user ${authUser.id} for auto-approved post.`);
     }
   }
 
-  logger.info(CONTENT_ACTIONS_CONTEXT, `submitContentAction: Submission created successfully by ${authUser.email}, ID: ${newSubmission.id}, Approved: ${submissionData.approved}`);
+  logger.info(POST_ACTIONS_CONTEXT, `createPostAction: Post created successfully by ${authUser.email}, ID: ${newPost.id}, Approved: ${postData.approved}`);
 
     revalidatePath('/posts');
     revalidatePath('/admin');
 
-    return { success: true, submissionId: newSubmission.id };
+    return { success: true, postId: newPost.id };
   }).catch((error: any) => {
     if (error.message === 'Request timed out after 12 seconds') {
-      logger.error(CONTENT_ACTIONS_CONTEXT, "submitContentAction: Request timed out");
-      return { success: false, error: 'The request took too long. Please try again later.' };
+      logger.warn(POST_ACTIONS_CONTEXT, 'Post creation timed out');
+      return { success: false, error: 'Your request timed out. Please try again.' };
     }
-    logger.error(CONTENT_ACTIONS_CONTEXT, "submitContentAction: Unexpected error:", error.message);
-    return { success: false, error: `Unexpected error: ${error.message}` };
+    logger.error(POST_ACTIONS_CONTEXT, 'An unexpected error occurred during post creation:', error);
+    return { success: false, error: 'An unexpected server error occurred. Please try again later.' };
   });
 }

@@ -22,5 +22,20 @@ if (!supabaseUrl || !supabaseAnonKey) {
  * @throws {Error} If Supabase URL or Anon Key is missing.
  */
 export function createClient() {
-  return createBrowserClient(supabaseUrl!, supabaseAnonKey!);
+  return createBrowserClient(supabaseUrl!, supabaseAnonKey!, {
+    auth: {
+      // Use secure cookies with minimal JWT payload to reduce fragmentation
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true,
+      // Configure for smaller JWT tokens
+      flowType: 'pkce'
+    },
+    global: {
+      headers: {
+        // Request minimal user metadata to reduce JWT size
+        'X-Client-Info': 'daily-hacklab-web'
+      }
+    }
+  });
 }

@@ -27,7 +27,7 @@ export interface User {
   avatarUrl?: string;
   
   /** Array of submission IDs the user has starred */
-  starredSubmissions?: string[];
+  starred_submissions?: string[];
   
   /** For consistency with SupabaseUser, though not fully populated/used everywhere */
   user_metadata?: { [key: string]: any };
@@ -37,10 +37,10 @@ export interface User {
 }
 
 /**
- * Represents a content submission made by a user.
- * Corresponds to the 'submissions' table in the database.
+ * Represents a user-created post.
+ * Corresponds to the 'posts' table in the database.
  */
-export interface Submission {
+export interface Post {
   /** Primary Key (UUID) */
   id: string;
   
@@ -56,10 +56,10 @@ export interface Submission {
   /** Array of photo URLs (JSONB in DB, string[] in TS) */
   photo_urls: string[];
   
-  /** Optional summary text for the submission */
+  /** Optional summary text for the post */
   summary?: string;
   
-  /** Submission timestamp (timestamptz in DB, ISO string in TS) */
+  /** Post creation timestamp (timestamptz in DB, ISO string in TS) */
   submission_date: string;
   
   /** Moderation status: null = pending, true = approved, false = rejected */

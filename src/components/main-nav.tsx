@@ -1,6 +1,5 @@
 "use client";
 
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
@@ -9,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetClose, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Menu, Home, UploadCloud, ListChecks, BarChart2, Server as ServerIcon, ShieldCheck, LogIn, LogOut, Cog, Sun, Moon, CalendarDays, Sparkles, Settings as SettingsIcon, Users } from 'lucide-react';
+import { Menu, Home, UploadCloud, ListChecks, Trophy, Server as ServerIcon, ShieldCheck, LogIn, LogOut, Cog, Sun, Moon, CalendarDays, Sparkles, Settings as SettingsIcon, Users } from 'lucide-react';
 import Image from 'next/image';
 import React from 'react';
 
@@ -28,10 +27,9 @@ interface NavLinkItem {
 // Definition of all navigation links
 const navLinksDefinition: NavLinkItem[] = [
   { href: '/', label: 'Home', icon: Home, requiresAuth: false, requiresAdmin: false, isSubItem: false },
-  { href: '/submit', label: 'Publish Clip', icon: UploadCloud, requiresAuth: true, requiresAdmin: false, isSubItem: false },
   { href: '/posts', label: 'Posts', icon: CalendarDays, requiresAuth: true, requiresAdmin: false, isSubItem: false },
   { href: '/events', label: 'Events', icon: Sparkles, requiresAuth: true, requiresAdmin: false, isSubItem: false },
-  { href: '/leaderboard', label: 'Leaderboard', icon: BarChart2, requiresAuth: false, requiresAdmin: false, isSubItem: false },
+  { href: '/leaderboard', label: 'Leaderboard', icon: Trophy, requiresAuth: false, requiresAdmin: false, isSubItem: false },
   { href: '/server-farm', label: 'My Datacenter', icon: ServerIcon, requiresAuth: true, requiresAdmin: false, isSubItem: false },
   { href: '/admin', label: 'Main Control', icon: ShieldCheck, requiresAuth: true, requiresAdmin: true, isSubItem: false },
   { href: '/admin/events', label: 'Manage Events', icon: Sparkles, requiresAuth: true, requiresAdmin: true, isSubItem: false },
@@ -115,7 +113,7 @@ export default function MainNav() {
           <nav className="p-4 space-y-1">
             {filteredLinks.map((link) => (
               <SheetClose asChild key={link.href}>
-                <Link href={link.href} passHref>
+                <a href={link.href}>
                   <Button
                     variant="ghost"
                     className={cn(
@@ -128,7 +126,7 @@ export default function MainNav() {
                     <link.icon className="mr-3 h-5 w-5" />
                     {link.label}
                   </Button>
-                </Link>
+                </a>
               </SheetClose>
             ))}
           </nav>
@@ -138,11 +136,11 @@ export default function MainNav() {
         <div className="p-4 border-t mt-auto space-y-1 bg-background">
           {/* User Settings Link */}
           <SheetClose asChild>
-            <Link href="/settings" passHref>
+            <a href="/settings">
               <Button variant="ghost" className="justify-start w-full text-left text-base py-2.5 hover:bg-accent/50">
                 <Cog className="mr-3 h-5 w-5" /> User Settings
               </Button>
-            </Link>
+            </a>
           </SheetClose>
 
           {/* Theme Toggle Button */}
@@ -176,11 +174,11 @@ export default function MainNav() {
             </>
           ) : (
             <SheetClose asChild>
-              <Link href="/login" passHref>
+              <a href="/login">
                 <Button variant="ghost" className="justify-start w-full text-left text-base py-2.5 hover:bg-accent/50">
                   <LogIn className="mr-3 h-5 w-5" /> Login
                 </Button>
-              </Link>
+              </a>
             </SheetClose>
           )}
         </div>

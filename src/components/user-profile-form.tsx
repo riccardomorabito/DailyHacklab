@@ -28,14 +28,14 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
-import { User as UserIcon, Lock, Upload, Trash2, Image as ImageIcon, Link2, Save, Loader2, Clock } from 'lucide-react';
+import { User as UserIcon, Lock, Upload, Trash2, Image as ImageIcon, Link2, Save, Loader2, Clock, AlertOctagon } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import NextImage from 'next/image';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { logger } from '@/lib/logger';
 import DynamicBoringAvatar from '@/components/dynamic-boring-avatar';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { formatDateInUserTimezone } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
 import type { User } from '@/types';
 import ImageCropDialog from '@/components/image-crop-dialog';
 
@@ -98,11 +98,19 @@ const profileFormSchema = z.object({
  * Schema for validating password form data
  */
 const passwordSchema = z.object({
-  newPassword: z.string().min(6, { message: "New password must contain at least 6 characters." }),
-  confirmPassword: z.string(),
-}).refine(data => data.newPassword === data.confirmPassword, {
-  message: "New passwords do not match.",
-  path: ["confirmPassword"],
+  newPassword: z.string().optional(),
+  confirmPassword: z.string().optional(),
+}).refine(data => {
+  // If one password field is filled, the other must be too, and they must match.
+  if (data.newPassword || data.confirmPassword) {
+    if (!data.newPassword || data.newPassword.length < 6) return false; // Catches min length for newPassword
+    return data.newPassword === data.confirmPassword;
+  }
+  // If both are empty, it's valid.
+  return true;
+}, {
+  message: "Passwords must match and be at least 6 characters long.",
+  path: ["confirmPassword"], // Error shown on the confirmation field
 });
 
 /** Type definition for profile form data */
@@ -478,28 +486,29 @@ const UserProfileForm = React.forwardRef<UserProfileFormHandles, {}>((props, ref
   
   if (authLoading && !currentUser) {
     return (
-      <Card className="w-full max-w-2xl mx-auto shadow-xl">
-        <CardHeader><CardTitle className="text-3xl font-headline">User Settings</CardTitle></CardHeader>
-        <CardContent><p>Loading user data...</p></CardContent>
+      <Card className="w-full max-w-2xl mx-auto shadow-xl overflow-hidden">
+        <CardHeader className="text-center pb-6 bg-gradient-to-br from-primary/10 via-background to-background">
+          <Loader2 className="mx-auto h-12 w-12 text-primary animate-spin mb-2" />
+          <CardTitle className="text-3xl md:text-4xl font-headline">Loading Profile</CardTitle>
+          <CardDescription className="mt-1 text-muted-foreground">Please wait while we load your profile...</CardDescription>
+        </CardHeader>
       </Card>
     );
   }
   if (!currentUser) {
     return (
-      <Card className="w-full max-w-2xl mx-auto shadow-xl">
-        <CardHeader><CardTitle className="text-3xl font-headline">Error</CardTitle></CardHeader>
-        <CardContent><p>User not found. Please log in.</p></CardContent>
+      <Card className="w-full max-w-2xl mx-auto shadow-xl overflow-hidden">
+        <CardHeader className="text-center pb-6 bg-gradient-to-br from-primary/10 via-background to-background">
+          <AlertOctagon className="mx-auto h-12 w-12 text-destructive mb-2" />
+          <CardTitle className="text-3xl md:text-4xl font-headline">Error</CardTitle>
+          <CardDescription className="mt-1 text-muted-foreground">User not found. Please log in.</CardDescription>
+        </CardHeader>
       </Card>
     );
   }
 
   const isProcessing = isSubmittingProfile || isSubmittingPassword || authLoading || isCleaningUpAvatar;
 
-  /**
-   * Renders the current avatar display based on preview state and avatar mode
-   * Shows either the preview image or a generated avatar fallback
-   * @returns JSX element for avatar display
-   */
   const currentAvatarDisplay = () => {
     if (avatarPreview && (profileAvatarMode !== 'remove' && profileAvatarMode !== 'none')) {
         return <NextImage src={avatarPreview} alt="Avatar Preview" width={80} height={80} className="rounded-full object-cover aspect-square" data-ai-hint="avatar preview"/>;
@@ -520,13 +529,14 @@ const UserProfileForm = React.forwardRef<UserProfileFormHandles, {}>((props, ref
 
   return (
     <div className="space-y-8">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center text-xl font-headline"><UserIcon className="mr-2 h-5 w-5 text-primary" /> Profile Information</CardTitle>
-          <CardDescription>Update your name and avatar. Email cannot be modified here.</CardDescription>
+      <Card className="shadow-xl overflow-hidden">
+        <CardHeader className="text-center pb-6 bg-gradient-to-br from-primary/10 via-background to-background">
+          <UserIcon className="mx-auto h-12 w-12 text-primary mb-2" />
+          <CardTitle className="text-3xl md:text-4xl font-headline">Your Profile</CardTitle>
+          <CardDescription className="mt-1 text-muted-foreground">Update your name and avatar.</CardDescription>
         </CardHeader>
         <form onSubmit={(e) => e.preventDefault()}> 
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 pt-6">
             <div className="space-y-1.5">
               <Label htmlFor="profile-name">Name</Label>
               <Input id="profile-name" {...registerProfile('name')} disabled={isProcessing} />
@@ -595,7 +605,7 @@ const UserProfileForm = React.forwardRef<UserProfileFormHandles, {}>((props, ref
                       name={name}
                       ref={(e) => {
                         ref(e); 
-                        if (avatarFileRef) (avatarFileRef.current as any) = e; 
+                        if (avatarFileRef) (avatarFileRef.current as any) = e;
                       }}
                       onChange={(e) => onChange(e.target.files)} 
                       disabled={isProcessing}
@@ -646,20 +656,21 @@ const UserProfileForm = React.forwardRef<UserProfileFormHandles, {}>((props, ref
             {currentUser.updated_at && (
               <div className="text-xs text-muted-foreground pt-2 flex items-center">
                 <Clock className="mr-1.5 h-3.5 w-3.5" />
-                Profile last updated: {formatDateInUserTimezone(currentUser.updated_at, "PPPp")}
+                Profile last updated: {formatDate(currentUser.updated_at, "PPPp")}
               </div>
             )}
           </CardContent>
         </form>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center text-xl font-headline"><Lock className="mr-2 h-5 w-5 text-primary" /> Change Password</CardTitle>
-          <CardDescription>Update your password. Leave fields empty to keep current password.</CardDescription>
+      <Card className="shadow-xl overflow-hidden">
+        <CardHeader className="text-center pb-6 bg-gradient-to-br from-primary/10 via-background to-background">
+          <Lock className="mx-auto h-12 w-12 text-primary mb-2" />
+          <CardTitle className="text-3xl md:text-4xl font-headline">Change Password</CardTitle>
+          <CardDescription className="mt-1 text-muted-foreground">Enter a new password below.</CardDescription>
         </CardHeader>
         <form onSubmit={(e) => e.preventDefault()}> 
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 pt-6">
             <div className="space-y-1.5">
               <Label htmlFor="newPassword">New Password</Label>
               <Input id="newPassword" type="password" {...registerPassword('newPassword')} disabled={isProcessing} placeholder="Min. 6 characters"/>

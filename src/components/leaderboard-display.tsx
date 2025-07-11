@@ -8,10 +8,11 @@ import { useEffect, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { getLeaderboardUsers } from '@/actions/leaderboard';
 import { logger } from '@/lib/logger';
-import ErrorDisplay from './error-display'; 
-import { Skeleton } from '@/components/ui/skeleton'; 
+import ErrorDisplay from './error-display';
+import { Skeleton } from '@/components/ui/skeleton';
 import DynamicBoringAvatar from '@/components/dynamic-boring-avatar';
 import { useAvatarLoader } from '@/hooks/use-avatar-loader';
+import GlobalLoading from '@/components/global-loading';
 
 const LEADERBOARD_DISPLAY_CONTEXT = "LeaderboardDisplay";
 
@@ -250,25 +251,7 @@ const LeaderboardListItem: React.FC<{ user: UserWithRank; isPodiumUser: boolean 
   }, [processUsers]); // processUsers is memoized, so this runs at mount. router.refresh() will force a re-render that causes a new fetch if the page is current.
 
   if (isLoading) {
-    return (
-      <Card className="w-full max-w-3xl mx-auto shadow-xl">
-        <CardHeader className="text-center pb-6">
-          <Trophy className="mx-auto h-12 w-12 text-primary animate-pulse mb-2" />
-          <CardTitle className="text-3xl md:text-4xl font-headline">Contributions Leaderboard</CardTitle>
-          <CardDescription>Loading champions...</CardDescription>
-        </CardHeader>
-        <CardContent className="py-10 space-y-4">
-          <div className="flex justify-around items-end h-48">
-            <Skeleton className="w-1/3 h-3/4 rounded-lg" />
-            <Skeleton className="w-1/3 h-full rounded-lg" />
-            <Skeleton className="w-1/3 h-2/3 rounded-lg" />
-          </div>
-          <Skeleton className="h-10 w-full rounded-md" />
-          <Skeleton className="h-10 w-full rounded-md" />
-          <Skeleton className="h-10 w-full rounded-md" />
-        </CardContent>
-      </Card>
-    );
+    return <GlobalLoading message="Loading champions..." />;
   }
 
   if (errorFetching) {
@@ -279,7 +262,7 @@ const LeaderboardListItem: React.FC<{ user: UserWithRank; isPodiumUser: boolean 
 
   return (
     <div className="py-8 px-2">
-      <Card className="w-full max-w-3xl mx-auto shadow-xl overflow-hidden">
+      <Card className="w-full mx-auto shadow-xl overflow-hidden">
         <CardHeader className="text-center pb-6 bg-gradient-to-br from-primary/10 via-background to-background">
           <Trophy className="mx-auto h-12 w-12 text-primary mb-2" />
           <CardTitle className="text-3xl md:text-4xl font-headline">Contributions Leaderboard</CardTitle>

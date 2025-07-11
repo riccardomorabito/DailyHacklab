@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import React, { useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { logger } from '@/lib/logger';
+import GlobalLoading from '@/components/global-loading';
 
 const PROTECTED_ROUTE_CONTEXT = "ProtectedRoute";
 
@@ -33,20 +34,26 @@ export default function ProtectedRoute({ children, adminOnly = false }: Protecte
 
   useEffect(() => {
     logger.debug(PROTECTED_ROUTE_CONTEXT, `Effect triggered. Path: ${pathname}, Loading: ${loading}, CurrentUser: ${!!currentUser}, IsAdmin: ${isAdmin}, AdminOnly: ${adminOnly}`);
-    if (!loading) { // Only act once loading is complete
-      if (!currentUser) {
-        logger.info(PROTECTED_ROUTE_CONTEXT, `No currentUser, redirecting to /login from ${pathname}`);
-        router.replace('/login'); // Redirect to login if not authenticated
-      } else if (adminOnly && !isAdmin) {
-        logger.warn(PROTECTED_ROUTE_CONTEXT, `AdminOnly page but user is not admin (User: ${currentUser.name}, Role: ${currentUser.role}), redirecting to / from ${pathname}`);
-        router.replace('/'); // Redirect to home if adminOnly and user is not admin
+    
+    // Add a small delay to prevent race conditions with middleware
+    const timeoutId = setTimeout(() => {
+      if (!loading) { // Only act once loading is complete
+        if (!currentUser) {
+          logger.info(PROTECTED_ROUTE_CONTEXT, `No currentUser, redirecting to /login from ${pathname}`);
+          router.replace('/login'); // Redirect to login if not authenticated
+        } else if (adminOnly && !isAdmin) {
+          logger.warn(PROTECTED_ROUTE_CONTEXT, `AdminOnly page but user is not admin (User: ${currentUser.name}, Role: ${currentUser.role}), redirecting to / from ${pathname}`);
+          router.replace('/'); // Redirect to home if adminOnly and user is not admin
+        } else {
+          // User is authenticated and authorized (if adminOnly)
+          logger.debug(PROTECTED_ROUTE_CONTEXT, `Access granted. Path: ${pathname}, User: ${currentUser?.name}`);
+        }
       } else {
-        // User is authenticated and authorized (if adminOnly)
-        logger.debug(PROTECTED_ROUTE_CONTEXT, `Access granted. Path: ${pathname}, User: ${currentUser?.name}`);
+          logger.debug(PROTECTED_ROUTE_CONTEXT, `Still loading authentication state. Path: ${pathname}`);
       }
-    } else {
-        logger.debug(PROTECTED_ROUTE_CONTEXT, `Still loading authentication state. Path: ${pathname}`);
-    }
+    }, 100); // Small delay to let middleware complete first
+
+    return () => clearTimeout(timeoutId);
   }, [currentUser, isAdmin, loading, adminOnly, router, pathname]);
 
   // Determine if skeleton should be shown:
@@ -58,18 +65,9 @@ export default function ProtectedRoute({ children, adminOnly = false }: Protecte
   logger.debug(PROTECTED_ROUTE_CONTEXT, `Render check. Path: ${pathname}, Loading: ${loading}, CurrentUser: ${!!currentUser}, IsAdmin: ${isAdmin}, AdminOnly: ${adminOnly}, ShouldShowSkeleton: ${shouldShowSkeleton}`);
 
   if (shouldShowSkeleton) {
-    logger.info(PROTECTED_ROUTE_CONTEXT, `Rendering SKELETON for ${pathname}. Reason: loading=${loading}, currentUser=${!!currentUser}, adminOnly=${adminOnly}, isAdmin=${isAdmin}`);
-    // Render a loading skeleton while checking auth or redirecting
-    return (
-      <div className="space-y-4 p-4">
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-64 w-full" />
-        <div className="flex gap-4">
-          <Skeleton className="h-32 w-1/2" />
-          <Skeleton className="h-32 w-1/2" />
-        </div>
-      </div>
-    );
+    logger.info(PROTECTED_ROUTE_CONTEXT, `Rendering LOADING for ${pathname}. Reason: loading=${loading}, currentUser=${!!currentUser}, adminOnly=${adminOnly}, isAdmin=${isAdmin}`);
+    // Render the global loading indicator while checking auth or redirecting
+    return <GlobalLoading message="Checking access..." />;
   }
   
   // If authenticated and authorized, render children

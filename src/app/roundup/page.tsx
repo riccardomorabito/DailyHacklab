@@ -3,7 +3,7 @@ import RoundupDisplay from '@/components/posts-display';
 
 /**
  * RoundupPage component - Daily Posts page
- * Displays submissions and activities from previous days
+ * Displays posts and activities from previous days
  * Requires user authentication to access
  * @returns JSX element representing the posts/archive page
  */

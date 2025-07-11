@@ -73,17 +73,12 @@ export default function SettingsPage() {
     return (
       <ProtectedRoute>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 flex-grow">
-          <Card className="w-full max-w-2xl mx-auto shadow-xl">
-            <CardHeader>
-              <div className="flex items-center space-x-3 mb-2">
-                  <Cog className="h-8 w-8 text-primary animate-spin" />
-                  <CardTitle className="text-3xl font-headline">Settings</CardTitle>
-              </div>
-              <CardDescription>Loading settings...</CardDescription>
+          <Card className="w-full max-w-2xl mx-auto shadow-xl overflow-hidden">
+            <CardHeader className="text-center pb-6 bg-gradient-to-br from-primary/10 via-background to-background">
+              <Cog className="mx-auto h-12 w-12 text-primary animate-spin mb-2" />
+              <CardTitle className="text-3xl md:text-4xl font-headline">Settings</CardTitle>
+              <CardDescription className="mt-1 text-muted-foreground">Loading your preferences...</CardDescription>
             </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Please wait...</p>
-            </CardContent>
           </Card>
         </div>
       </ProtectedRoute>
@@ -94,13 +89,11 @@ export default function SettingsPage() {
     <ProtectedRoute>
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 flex-grow">
         <div className="w-full max-w-2xl mx-auto space-y-8">
-          <Card className="shadow-xl">
-            <CardHeader>
-              <div className="flex items-center space-x-3 mb-2">
-                  <Cog className="h-8 w-8 text-primary" />
-                  <CardTitle className="text-3xl font-headline">Application Settings</CardTitle>
-              </div>
-              <CardDescription>Manage your application preferences.</CardDescription>
+          <Card className="shadow-xl overflow-hidden">
+            <CardHeader className="text-center pb-6 bg-gradient-to-br from-primary/10 via-background to-background">
+              <Cog className="mx-auto h-12 w-12 text-primary mb-2" />
+              <CardTitle className="text-3xl md:text-4xl font-headline">Application Settings</CardTitle>
+              <CardDescription className="mt-1 text-muted-foreground">Manage your application preferences.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div>

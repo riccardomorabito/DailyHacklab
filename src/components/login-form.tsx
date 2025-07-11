@@ -14,6 +14,7 @@ import { LogIn, Loader2, CheckCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { logger } from '@/lib/logger';
 import { usePublicRegistration } from '@/hooks/use-app-settings';
+import GlobalLoading from '@/components/global-loading';
 
 const LOGIN_FORM_CONTEXT = "LoginForm";
 
@@ -81,7 +82,10 @@ function LoginFormContent() {
         }
       }, 1000);
       
-      window.location.href = '/';
+      // Small delay to ensure auth state propagation before navigation
+      setTimeout(() => {
+        router.push('/');
+      }, 100);
     } else {
       logger.error(LOGIN_FORM_CONTEXT, `handleSubmit: Login failed for ${email} without a specific error from Supabase.`);
       toast({ title: "Login Failed", description: "An unknown error occurred.", variant: "destructive"});
@@ -91,12 +95,11 @@ function LoginFormContent() {
   const isLoading = authLoading || isSubmitting;
 
   return (
-    <Card className="w-full max-w-md shadow-xl">
-      <CardHeader>
-        <CardTitle className="text-2xl font-headline flex items-center">
-          <LogIn className="mr-2 h-6 w-6 text-primary" /> Member Access
-        </CardTitle>
-        <CardDescription>Enter your email and password to access Daily Hacklab.</CardDescription>
+    <Card className="w-full max-w-md shadow-xl overflow-hidden">
+      <CardHeader className="text-center pb-6 bg-gradient-to-br from-primary/10 via-background to-background">
+        <LogIn className="mx-auto h-12 w-12 text-primary mb-2" />
+        <CardTitle className="text-3xl md:text-4xl font-headline">Member Access</CardTitle>
+        <CardDescription className="mt-1 text-muted-foreground">Enter your credentials to continue</CardDescription>
       </CardHeader>
       {showConfirmation && (
         <div className="px-6 pb-4">
@@ -164,16 +167,7 @@ function LoginFormContent() {
  */
 export default function LoginForm() {
   return (
-    <Suspense fallback={
-      <Card className="w-full max-w-md shadow-xl">
-        <CardHeader>
-          <CardTitle className="text-2xl font-headline flex items-center">
-            <Loader2 className="mr-2 h-6 w-6 text-primary animate-spin" /> Loading
-          </CardTitle>
-          <CardDescription>Please wait...</CardDescription>
-        </CardHeader>
-      </Card>
-    }>
+    <Suspense fallback={<GlobalLoading message="Loading login..." />}>
       <LoginFormContent />
     </Suspense>
   );

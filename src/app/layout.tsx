@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/contexts/auth-provider';
@@ -8,6 +8,7 @@ import Footer from '@/components/footer';
 import { Toaster } from "@/components/ui/toaster";
 import BottomNavBar from '@/components/bottom-nav-bar';
 import { ClientSecurityInitializer } from '@/components/client-security-initializer';
+import GridBackground from '@/components/GridBackground';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -29,8 +30,12 @@ export const metadata: Metadata = {
     ],
   },
   manifest: '/manifest.json',
+};
+
+export const viewport: Viewport = {
   themeColor: '#000000',
-  viewport: 'width=device-width, initial-scale=1',
+  width: 'device-width',
+  initialScale: 1,
 };
 
 /**
@@ -54,9 +59,8 @@ export default function RootLayout({
         <ClientSecurityInitializer />
         <ThemeProvider storageKey="daily-hacklab-theme">
           <AuthProvider>
+            <GridBackground />
             <Header />
-            {/* Container and padding removed from main to allow animated background to cover everything */}
-            {/* Padding/container will be handled internally by individual page layouts if needed */}
             <main className="flex-grow flex flex-col pb-16 md:pb-0"> {/* pb for BottomNavBar */}
               {children}
             </main>

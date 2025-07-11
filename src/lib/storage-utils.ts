@@ -6,20 +6,26 @@ const STORAGE_UTILS_CONTEXT = "StorageUtils";
 /**
  * Extract storage path from a Supabase storage URL for any bucket
  * @param fileUrl The full file URL from Supabase storage
- * @param bucketName The name of the storage bucket (e.g., 'avatars', 'submissions')
+ * @param bucketName The name of the storage bucket (e.g., 'avatars', 'posts')
  * @returns The storage path or null if URL is invalid
  */
 export function extractStoragePathFromUrl(fileUrl: string | null | undefined, bucketName: string): string | null {
-  if (!fileUrl) return null;
+  if (!fileUrl) {
+    logger.debug(STORAGE_UTILS_CONTEXT, `extractStoragePathFromUrl: No URL provided for bucket: ${bucketName}`);
+    return null;
+  }
   
   try {
     // Supabase storage URLs typically follow this pattern:
     // https://[project-id].supabase.co/storage/v1/object/public/[bucket]/[path]
     const url = new URL(fileUrl);
     
+    logger.info(STORAGE_UTILS_CONTEXT, `extractStoragePathFromUrl: Processing URL: ${fileUrl}`);
+    logger.info(STORAGE_UTILS_CONTEXT, `extractStoragePathFromUrl: Hostname: ${url.hostname}, Pathname: ${url.pathname}`);
+    
     // Check if it's a Supabase storage URL
     if (!url.hostname.includes('supabase.co') || !url.pathname.includes('/storage/v1/object/public/')) {
-      logger.debug(STORAGE_UTILS_CONTEXT, `extractStoragePathFromUrl: URL ${fileUrl} is not a Supabase storage URL`);
+      logger.warn(STORAGE_UTILS_CONTEXT, `extractStoragePathFromUrl: URL ${fileUrl} is not a Supabase storage URL (hostname: ${url.hostname}, pathname: ${url.pathname})`);
       return null;
     }
     
@@ -27,16 +33,18 @@ export function extractStoragePathFromUrl(fileUrl: string | null | undefined, bu
     const pathPattern = new RegExp(`/storage/v1/object/public/${bucketName}/(.+)$`);
     const pathMatch = url.pathname.match(pathPattern);
     
+    logger.info(STORAGE_UTILS_CONTEXT, `extractStoragePathFromUrl: Pattern: ${pathPattern.source}, Match result:`, pathMatch);
+    
     if (pathMatch) {
       const storagePath = pathMatch[1];
-      logger.debug(STORAGE_UTILS_CONTEXT, `extractStoragePathFromUrl: Extracted path: ${storagePath} from bucket: ${bucketName}`);
+      logger.info(STORAGE_UTILS_CONTEXT, `extractStoragePathFromUrl: Successfully extracted path: "${storagePath}" from bucket: ${bucketName}`);
       return storagePath;
     }
     
-    logger.debug(STORAGE_UTILS_CONTEXT, `extractStoragePathFromUrl: Could not extract path from URL: ${fileUrl} for bucket: ${bucketName}`);
+    logger.warn(STORAGE_UTILS_CONTEXT, `extractStoragePathFromUrl: Could not extract path from URL: ${fileUrl} for bucket: ${bucketName}. Pathname: ${url.pathname}`);
     return null;
   } catch (error) {
-    logger.warn(STORAGE_UTILS_CONTEXT, `extractStoragePathFromUrl: Invalid URL: ${fileUrl}`, error);
+    logger.error(STORAGE_UTILS_CONTEXT, `extractStoragePathFromUrl: Invalid URL: ${fileUrl}`, error);
     return null;
   }
 }
@@ -53,11 +61,17 @@ export function extractStoragePathsFromUrls(fileUrls: string[] | null | undefine
     return [];
   }
 
+  logger.info(STORAGE_UTILS_CONTEXT, `extractStoragePathsFromUrls: Processing ${fileUrls.length} URLs for bucket ${bucketName}:`, fileUrls);
+
   const validPaths = fileUrls
-    .map(url => extractStoragePathFromUrl(url, bucketName))
+    .map((url, index) => {
+      const path = extractStoragePathFromUrl(url, bucketName);
+      logger.info(STORAGE_UTILS_CONTEXT, `extractStoragePathsFromUrls: URL ${index + 1}/${fileUrls.length}: "${url}" -> path: "${path}"`);
+      return path;
+    })
     .filter((path): path is string => path !== null);
 
-  logger.debug(STORAGE_UTILS_CONTEXT, `extractStoragePathsFromUrls: Extracted ${validPaths.length} valid paths from ${fileUrls.length} URLs for bucket: ${bucketName}`);
+  logger.info(STORAGE_UTILS_CONTEXT, `extractStoragePathsFromUrls: Extracted ${validPaths.length} valid paths from ${fileUrls.length} URLs for bucket: ${bucketName}:`, validPaths);
   return validPaths;
 }
 
@@ -200,18 +214,63 @@ export async function deleteStorageFiles(
  * @returns Promise with deletion results
  */
 export async function deleteStorageFilesByUrls(
-  fileUrls: string[] | null | undefined, 
-  bucketName: string, 
+  fileUrls: string[] | null | undefined,
+  bucketName: string,
   timeoutMs: number = 15000
 ): Promise<{ success: boolean; deletedCount: number; errors: string[] }> {
+  logger.info(STORAGE_UTILS_CONTEXT, `deleteStorageFilesByUrls: Starting deletion for bucket ${bucketName}. Input URLs:`, fileUrls);
+  
   const storagePaths = extractStoragePathsFromUrls(fileUrls, bucketName);
   
+  logger.info(STORAGE_UTILS_CONTEXT, `deleteStorageFilesByUrls: Extracted ${storagePaths.length} storage paths from ${fileUrls?.length || 0} URLs:`, storagePaths);
+  
   if (storagePaths.length === 0) {
-    logger.debug(STORAGE_UTILS_CONTEXT, `deleteStorageFilesByUrls: No valid storage paths found for bucket: ${bucketName}`);
+    logger.warn(STORAGE_UTILS_CONTEXT, `deleteStorageFilesByUrls: No valid storage paths found for bucket: ${bucketName}. Original URLs:`, fileUrls);
     return { success: true, deletedCount: 0, errors: [] };
   }
 
-  return await deleteStorageFiles(bucketName, storagePaths, timeoutMs);
+  const result = await deleteStorageFiles(bucketName, storagePaths, timeoutMs);
+  logger.info(STORAGE_UTILS_CONTEXT, `deleteStorageFilesByUrls: Final result for bucket ${bucketName}:`, result);
+  return result;
+}
+
+/**
+ * Test function to delete files directly with simple paths (for debugging)
+ * @param bucketName The name of the storage bucket
+ * @param filePaths Array of file paths to delete (not full URLs)
+ * @returns Promise with deletion results
+ */
+export async function deleteStorageFilesDirectTest(
+  bucketName: string,
+  filePaths: string[]
+): Promise<{ success: boolean; deletedCount: number; errors: string[]; data?: any }> {
+  if (!filePaths || filePaths.length === 0) {
+    logger.debug(STORAGE_UTILS_CONTEXT, `deleteStorageFilesDirectTest: No file paths provided for bucket: ${bucketName}`);
+    return { success: true, deletedCount: 0, errors: [] };
+  }
+
+  logger.info(STORAGE_UTILS_CONTEXT, `deleteStorageFilesDirectTest: Attempting to delete ${filePaths.length} files from bucket: ${bucketName}:`, filePaths);
+
+  try {
+    const supabaseAdmin = createAdminClient();
+    
+    const { data, error } = await supabaseAdmin.storage
+      .from(bucketName)
+      .remove(filePaths);
+    
+    logger.info(STORAGE_UTILS_CONTEXT, `deleteStorageFilesDirectTest: Supabase response - data:`, data, 'error:', error);
+    
+    if (error) {
+      logger.error(STORAGE_UTILS_CONTEXT, `deleteStorageFilesDirectTest: Error deleting files from bucket ${bucketName}:`, error);
+      return { success: false, deletedCount: 0, errors: [error.message], data };
+    }
+    
+    logger.info(STORAGE_UTILS_CONTEXT, `deleteStorageFilesDirectTest: Successfully deleted ${filePaths.length} files from bucket ${bucketName}`);
+    return { success: true, deletedCount: filePaths.length, errors: [], data };
+  } catch (error: any) {
+    logger.error(STORAGE_UTILS_CONTEXT, `deleteStorageFilesDirectTest: Unexpected error:`, error);
+    return { success: false, deletedCount: 0, errors: [error.message] };
+  }
 }
 
 /**

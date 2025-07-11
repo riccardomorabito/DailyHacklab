@@ -5,11 +5,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { X, Calendar, Clock, Sparkles } from 'lucide-react';
 import { getActiveEventNotifications } from '@/actions/events';
-import { getActiveEventNotificationsForUserTimezone } from '@/lib/events-utils';
 import { useNotifications } from '@/hooks/use-notifications';
 import { useAuth } from '@/hooks/use-auth';
 import type { SpecialEvent } from '@/types';
-import { formatDateInUserTimezone, getUserTimezone } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 
 const EVENT_NOTIFICATIONS_CONTEXT = "EventNotificationsBanner";
@@ -60,11 +59,9 @@ export default function EventNotificationsBanner() {
   useEffect(() => {
     const checkActiveEvents = async () => {
       try {
-        // Get user's timezone from browser
-        const userTimezone = getUserTimezone();
-        logger.debug(EVENT_NOTIFICATIONS_CONTEXT, `Using user timezone: ${userTimezone}`);
+        logger.debug(EVENT_NOTIFICATIONS_CONTEXT, `Fetching active event notifications`);
         
-        const { data: events, error } = await getActiveEventNotificationsForUserTimezone(userTimezone);
+        const { data: events, error } = await getActiveEventNotifications();
         
         if (error) {
           logger.error(EVENT_NOTIFICATIONS_CONTEXT, "Error fetching active events:", error);
@@ -73,7 +70,7 @@ export default function EventNotificationsBanner() {
         }
 
         if (events && events.length > 0) {
-          logger.info(EVENT_NOTIFICATIONS_CONTEXT, `Found ${events.length} active events in timezone ${userTimezone}`);
+          logger.info(EVENT_NOTIFICATIONS_CONTEXT, `Found ${events.length} active events`);
           setActiveEvents(events);
           
           // Show browser notifications for new events (only if user is logged in)
@@ -170,7 +167,7 @@ export default function EventNotificationsBanner() {
                 <div className="flex items-center gap-4 mt-2 text-xs">
                   <span className="flex items-center gap-1">
                     <Calendar className="h-3 w-3" />
-                    {formatDateInUserTimezone(event.event_date, "PPP")}
+                    {formatDate(event.event_date, "PPP")}
                   </span>
                   {(event.start_time || event.end_time) && (
                     <span className="flex items-center gap-1">

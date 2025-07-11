@@ -10,10 +10,10 @@ import { useAuth } from '@/hooks/use-auth';
  * Props for the AppreciationStar component.
  */
 interface AppreciationStarProps {
-  submissionId: string;
+  postId: string;
   currentStars: number;
   isStarredByCurrentUser: boolean;
-  onStarClick: (submissionId: string) => void; // Callback when star is clicked
+  onStarClick: (postId: string) => void; // Callback when star is clicked
   className?: string;
 }
 
@@ -26,7 +26,7 @@ interface AppreciationStarProps {
  * @returns {JSX.Element} The star rating display and interaction button.
  */
 const AppreciationStar: FC<AppreciationStarProps> = ({
-  submissionId,
+  postId,
   currentStars,
   isStarredByCurrentUser,
   onStarClick,
@@ -40,7 +40,7 @@ const AppreciationStar: FC<AppreciationStarProps> = ({
    */
   const handleStar = () => {
     if (!currentUser) return; // Do nothing if user is not logged in
-    onStarClick(submissionId);
+    onStarClick(postId);
   };
 
   // Button is interactable only if the user is logged in.

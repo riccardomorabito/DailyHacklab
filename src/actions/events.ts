@@ -5,6 +5,7 @@ import type { SpecialEvent } from '@/types';
 import { logger } from '@/lib/logger';
 // import { revalidatePath } from 'next/cache';
 import { startOfDay, isPast, isToday, parseISO, addDays, isBefore, isAfter, formatISO } from 'date-fns';
+import { toZonedTime } from 'date-fns-tz';
 
 /** Context identifier for logging events-related operations */
 const EVENTS_ACTIONS_CONTEXT = "EventsActions";
@@ -668,53 +669,7 @@ export async function getActiveEventNotifications(): Promise<{ data?: SpecialEve
   }
 }
 
-/**
- * Gets active special events that should show notifications on the website (timezone-aware)
- * @param {string} userTimezone - The user's timezone from browser (e.g., 'America/New_York')
- * @returns {Promise<{ data?: SpecialEvent[]; error?: string }>} Promise with array of events that should show notifications
- */
-export async function getActiveEventNotificationsForUserTimezone(userTimezone: string): Promise<{ data?: SpecialEvent[]; error?: string }> {
-  logger.info(EVENTS_ACTIONS_CONTEXT, `getActiveEventNotificationsForUserTimezone: Checking for active event notifications in timezone: ${userTimezone}`);
-  
-  try {
-    const supabaseAdmin = createAdminClient();
-    const now = new Date();
-    
-    // Get all events that have notifications enabled and are not instances
-    const { data: events, error } = await supabaseAdmin
-      .from('special_events')
-      .select('*')
-      .eq('show_notification', true)
-      .is('parent_event_id', null); // Only get parent events, not instances
-    
-    if (error) {
-      logger.error(EVENTS_ACTIONS_CONTEXT, 'getActiveEventNotificationsForUserTimezone: Error fetching events:', error.message);
-      return { error: `Error fetching event notifications: ${error.message}` };
-    }
-    
-    if (!events || events.length === 0) {
-      return { data: [] };
-    }
-    
-    const activeNotifications: SpecialEvent[] = [];
-    
-    for (const event of events) {
-      // Use the new timezone-aware function
-      if (isEventCurrentlyActiveInUserTimezone(event as SpecialEvent, now, userTimezone)) {
-        activeNotifications.push(event as SpecialEvent);
-        logger.debug(EVENTS_ACTIONS_CONTEXT, `Event "${event.name}" is currently active in timezone ${userTimezone}`);
-      } else {
-        logger.debug(EVENTS_ACTIONS_CONTEXT, `Event "${event.name}" is not currently active in timezone ${userTimezone}`);
-      }
-    }
-    
-    logger.info(EVENTS_ACTIONS_CONTEXT, `getActiveEventNotificationsForUserTimezone: Found ${activeNotifications.length} active notifications for timezone ${userTimezone}.`);
-    return { data: activeNotifications };
-  } catch (e: any) {
-    logger.error(EVENTS_ACTIONS_CONTEXT, "getActiveEventNotificationsForUserTimezone: Unexpected error:", e.message);
-    return { error: `Unexpected error: ${e.message}` };
-  }
-}
+
 
 /**
  * Gets all special events with filtering options for public viewing
@@ -733,12 +688,11 @@ export async function getAllEventsForPublic(filter: 'all' | 'upcoming' | 'curren
       return { error: 'Authentication required to view events.' };
     }
 
-    // Get all parent events (no recurring instances)
     const { data: events, error } = await supabase
       .from('special_events')
       .select('*')
       .is('parent_event_id', null)
-      .order('event_date', { ascending: false });
+      .order('event_date', { ascending: true });
 
     if (error) {
       logger.error(EVENTS_ACTIONS_CONTEXT, 'getAllEventsForPublic: Error fetching events:', error.message);
@@ -749,35 +703,44 @@ export async function getAllEventsForPublic(filter: 'all' | 'upcoming' | 'curren
       return { data: [] };
     }
 
-    // Filter events based on the requested filter
-    const today = startOfDay(new Date());
-    let filteredEvents = events;
+    const now = new Date();
+    const timeZone = 'Europe/Rome';
+    const zonedNow = toZonedTime(now, timeZone);
+    let filteredEvents: SpecialEvent[] = [];
+
+    const getZonedEventTimes = (event: SpecialEvent) => {
+      const eventDate = parseISO(event.event_date);
+      const startTime = event.start_time ? `${formatISO(eventDate, { representation: 'date' })}T${event.start_time}:00` : formatISO(eventDate);
+      const endTime = event.end_time ? `${formatISO(eventDate, { representation: 'date' })}T${event.end_time}:00` : formatISO(eventDate);
+
+      return {
+        start: toZonedTime(parseISO(startTime), timeZone),
+        end: toZonedTime(parseISO(endTime), timeZone)
+      };
+    };
 
     switch (filter) {
+      case 'current':
+        filteredEvents = events.filter(event => isEventCurrentlyActive(event as SpecialEvent, now));
+        break;
+      
       case 'upcoming':
         filteredEvents = events.filter(event => {
-          const eventDate = startOfDay(parseISO(event.event_date));
-          return isAfter(eventDate, today);
+          const { start } = getZonedEventTimes(event as SpecialEvent);
+          return isAfter(start, zonedNow) && !isEventCurrentlyActive(event as SpecialEvent, now);
         });
         break;
-      
-      case 'current':
-        filteredEvents = events.filter(event => {
-          return isEventCurrentlyActive(event as SpecialEvent, new Date());
-        });
-        break;
-      
+
       case 'past':
         filteredEvents = events.filter(event => {
-          const eventDate = startOfDay(parseISO(event.event_date));
-          return isBefore(eventDate, today) &&
-                 (!event.is_recurring || !isEventActiveToday(event, today));
-        });
+          const { end } = getZonedEventTimes(event as SpecialEvent);
+          return isBefore(end, zonedNow) && !isEventCurrentlyActive(event as SpecialEvent, now);
+        }).reverse();
         break;
-      
+
       case 'all':
       default:
-        // Return all events, already sorted by date descending
+        filteredEvents = events;
         break;
     }
 
@@ -793,93 +756,7 @@ export async function getAllEventsForPublic(filter: 'all' | 'upcoming' | 'curren
   });
 }
 
-/**
- * Gets all special events with filtering options for public viewing (timezone-aware)
- * @param filter - Filter type: 'all', 'upcoming', 'current', 'past'
- * @param userTimezone - The user's timezone from browser
- * @returns Promise with filtered events array
- */
-export async function getAllEventsForPublicWithTimezone(
-  filter: 'all' | 'upcoming' | 'current' | 'past' = 'all',
-  userTimezone: string
-): Promise<{ data?: SpecialEvent[]; error?: string }> {
-  logger.info(EVENTS_ACTIONS_CONTEXT, `getAllEventsForPublicWithTimezone: Fetching events with filter: ${filter} for timezone: ${userTimezone}`);
-  
-  return withTimeout(async () => {
-    const supabase = await createServerSupabaseClient();
-    
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-    if (authError || !authUser) {
-      logger.warn(EVENTS_ACTIONS_CONTEXT, "getAllEventsForPublicWithTimezone: Authentication required.");
-      return { error: 'Authentication required to view events.' };
-    }
 
-    // Get all parent events (no recurring instances)
-    const { data: events, error } = await supabase
-      .from('special_events')
-      .select('*')
-      .is('parent_event_id', null)
-      .order('event_date', { ascending: false });
-
-    if (error) {
-      logger.error(EVENTS_ACTIONS_CONTEXT, 'getAllEventsForPublicWithTimezone: Error fetching events:', error.message);
-      return { error: `Error fetching events: ${error.message}` };
-    }
-
-    if (!events) {
-      return { data: [] };
-    }
-
-    // Filter events based on the requested filter using user's timezone
-    const now = new Date();
-    const nowInUserTz = new Date(now.toLocaleString("en-US", { timeZone: userTimezone }));
-    const todayInUserTz = new Date(nowInUserTz.getFullYear(), nowInUserTz.getMonth(), nowInUserTz.getDate());
-    
-    let filteredEvents = events;
-
-    switch (filter) {
-      case 'upcoming':
-        filteredEvents = events.filter(event => {
-          const eventDate = new Date(event.event_date);
-          const eventDateInUserTz = new Date(eventDate.toLocaleString("en-US", { timeZone: userTimezone }));
-          const eventDateStartOfDay = new Date(eventDateInUserTz.getFullYear(), eventDateInUserTz.getMonth(), eventDateInUserTz.getDate());
-          return eventDateStartOfDay.getTime() > todayInUserTz.getTime();
-        });
-        break;
-      
-      case 'current':
-        filteredEvents = events.filter(event => {
-          return isEventCurrentlyActiveInUserTimezone(event as SpecialEvent, now, userTimezone);
-        });
-        break;
-      
-      case 'past':
-        filteredEvents = events.filter(event => {
-          const eventDate = new Date(event.event_date);
-          const eventDateInUserTz = new Date(eventDate.toLocaleString("en-US", { timeZone: userTimezone }));
-          const eventDateStartOfDay = new Date(eventDateInUserTz.getFullYear(), eventDateInUserTz.getMonth(), eventDateInUserTz.getDate());
-          return eventDateStartOfDay.getTime() < todayInUserTz.getTime() &&
-                 (!event.is_recurring || !isEventCurrentlyActiveInUserTimezone(event as SpecialEvent, now, userTimezone));
-        });
-        break;
-      
-      case 'all':
-      default:
-        // Return all events, already sorted by date descending
-        break;
-    }
-
-    logger.info(EVENTS_ACTIONS_CONTEXT, `getAllEventsForPublicWithTimezone: Returning ${filteredEvents.length} events (filter: ${filter}, timezone: ${userTimezone})`);
-    return { data: filteredEvents as SpecialEvent[] };
-  }).catch((error: any) => {
-    if (error.message === 'Request timed out after 12 seconds') {
-      logger.error(EVENTS_ACTIONS_CONTEXT, "getAllEventsForPublicWithTimezone: Request timed out");
-      return { error: 'The request took too long. Please try again later.' };
-    }
-    logger.error(EVENTS_ACTIONS_CONTEXT, "getAllEventsForPublicWithTimezone: Unexpected error:", error.message);
-    return { error: `Unexpected error: ${error.message}` };
-  });
-}
 
 /**
  * Helper function to check if an event is currently active (considering time)
@@ -888,171 +765,26 @@ export async function getAllEventsForPublicWithTimezone(
  * @returns {boolean} True if the event is currently active
  */
 function isEventCurrentlyActive(event: SpecialEvent, now: Date): boolean {
-  const eventDate = startOfDay(parseISO(event.event_date));
-  const today = startOfDay(now);
-  
-  // First check if the event is on the correct date
-  let isOnCorrectDate = false;
-  
-  if (!event.is_recurring) {
-    // Single event: check if it's today
-    isOnCorrectDate = eventDate.getTime() === today.getTime();
-  } else if (event.recurring_interval_days) {
-    // Recurring event: check if today falls on a recurring interval
-    const recurringEndDate = event.recurring_end_date ? startOfDay(parseISO(event.recurring_end_date)) : null;
-    
-    // Check if today is after the event start date
-    if (isBefore(today, eventDate)) {
-      return false;
-    }
-    
-    // Check if today is before the recurring end date (if set)
-    if (recurringEndDate && isAfter(today, recurringEndDate)) {
-      return false;
-    }
-    
-    // Calculate if today falls on a recurring interval
-    const daysDifference = Math.floor((today.getTime() - eventDate.getTime()) / (1000 * 60 * 60 * 24));
-    isOnCorrectDate = daysDifference % event.recurring_interval_days === 0;
-  }
-  
-  if (!isOnCorrectDate) {
-    return false;
-  }
-  
-  // Now check the time constraints if they exist
-  if (event.start_time || event.end_time) {
-    const currentTime = now.getHours() * 60 + now.getMinutes(); // Current time in minutes since midnight
-    
-    if (event.start_time) {
-      const [startHour, startMinute] = event.start_time.split(':').map(Number);
-      const startTimeMinutes = startHour * 60 + startMinute;
-      
-      // If current time is before start time, event is not active yet
-      if (currentTime < startTimeMinutes) {
-        return false;
-      }
-    }
-    
-    if (event.end_time) {
-      const [endHour, endMinute] = event.end_time.split(':').map(Number);
-      const endTimeMinutes = endHour * 60 + endMinute;
-      
-      // If current time is after end time, event is no longer active
-      if (currentTime > endTimeMinutes) {
-        return false;
-      }
-    }
-  }
-  
-  return true;
-}
+  const timeZone = 'Europe/Rome';
+  const zonedNow = toZonedTime(now, timeZone);
 
-/**
- * Helper function to check if a recurring event is active today (legacy function for compatibility)
- * @param {SpecialEvent} event - The recurring event to check
- * @param {Date} today - The date to check against
- * @returns {boolean} True if the recurring event is active on the given date
- */
-function isEventActiveToday(event: SpecialEvent, today: Date): boolean {
-  if (!event.is_recurring || !event.recurring_interval_days) {
+  const eventDate = parseISO(event.event_date);
+  const eventDay = startOfDay(eventDate);
+  const today = startOfDay(zonedNow);
+
+  if (eventDay.getTime() !== today.getTime()) {
     return false;
   }
 
-  const eventStartDate = startOfDay(parseISO(event.event_date));
-  const recurringEndDate = event.recurring_end_date ? startOfDay(parseISO(event.recurring_end_date)) : null;
-
-  // Check if today is after the event start date
-  if (isBefore(today, eventStartDate)) {
-    return false;
+  if (!event.start_time || !event.end_time) {
+    return true;
   }
 
-  // Check if today is before the recurring end date (if set)
-  if (recurringEndDate && isAfter(today, recurringEndDate)) {
-    return false;
-  }
+  const startTimeStr = `${formatISO(eventDate, { representation: 'date' })}T${event.start_time}:00`;
+  const endTimeStr = `${formatISO(eventDate, { representation: 'date' })}T${event.end_time}:00`;
 
-  // Calculate if today falls on a recurring interval
-  const daysDifference = Math.floor((today.getTime() - eventStartDate.getTime()) / (1000 * 60 * 60 * 24));
-  return daysDifference % event.recurring_interval_days === 0;
-}
+  const eventStartTime = toZonedTime(parseISO(startTimeStr), timeZone);
+  const eventEndTime = toZonedTime(parseISO(endTimeStr), timeZone);
 
-/**
- * Helper function to check if an event is currently active in user's timezone (considering time)
- * This is the main function to use for proper timezone handling
- * @param {SpecialEvent} event - The event to check
- * @param {Date} now - The current date and time (in user's timezone)
- * @param {string} userTimezone - The user's timezone (from browser)
- * @returns {boolean} True if the event is currently active in user's timezone
- */
-function isEventCurrentlyActiveInUserTimezone(event: SpecialEvent, now: Date, userTimezone: string): boolean {
-  // Convert the event date to user's timezone for comparison
-  const eventDate = new Date(event.event_date);
-  const eventDateInUserTz = new Date(eventDate.toLocaleString("en-US", { timeZone: userTimezone }));
-  const eventDateStartOfDay = new Date(eventDateInUserTz.getFullYear(), eventDateInUserTz.getMonth(), eventDateInUserTz.getDate());
-  
-  // Convert current time to user's timezone
-  const nowInUserTz = new Date(now.toLocaleString("en-US", { timeZone: userTimezone }));
-  const todayStartOfDay = new Date(nowInUserTz.getFullYear(), nowInUserTz.getMonth(), nowInUserTz.getDate());
-  
-  // First check if the event is on the correct date
-  let isOnCorrectDate = false;
-  
-  if (!event.is_recurring) {
-    // Single event: check if it's today in user's timezone
-    isOnCorrectDate = eventDateStartOfDay.getTime() === todayStartOfDay.getTime();
-  } else if (event.recurring_interval_days) {
-    // Recurring event: check if today falls on a recurring interval
-    const recurringEndDate = event.recurring_end_date ? new Date(event.recurring_end_date) : null;
-    let recurringEndDateInUserTz = null;
-    if (recurringEndDate) {
-      const recurringEndInUserTz = new Date(recurringEndDate.toLocaleString("en-US", { timeZone: userTimezone }));
-      recurringEndDateInUserTz = new Date(recurringEndInUserTz.getFullYear(), recurringEndInUserTz.getMonth(), recurringEndInUserTz.getDate());
-    }
-    
-    // Check if today is after the event start date
-    if (todayStartOfDay.getTime() < eventDateStartOfDay.getTime()) {
-      return false;
-    }
-    
-    // Check if today is before the recurring end date (if set)
-    if (recurringEndDateInUserTz && todayStartOfDay.getTime() > recurringEndDateInUserTz.getTime()) {
-      return false;
-    }
-    
-    // Calculate if today falls on a recurring interval
-    const daysDifference = Math.floor((todayStartOfDay.getTime() - eventDateStartOfDay.getTime()) / (1000 * 60 * 60 * 24));
-    isOnCorrectDate = daysDifference % event.recurring_interval_days === 0;
-  }
-  
-  if (!isOnCorrectDate) {
-    return false;
-  }
-  
-  // Now check the time constraints if they exist (using user's timezone)
-  if (event.start_time || event.end_time) {
-    const currentTime = nowInUserTz.getHours() * 60 + nowInUserTz.getMinutes(); // Current time in minutes since midnight
-    
-    if (event.start_time) {
-      const [startHour, startMinute] = event.start_time.split(':').map(Number);
-      const startTimeMinutes = startHour * 60 + startMinute;
-      
-      // If current time is before start time, event is not active yet
-      if (currentTime < startTimeMinutes) {
-        return false;
-      }
-    }
-    
-    if (event.end_time) {
-      const [endHour, endMinute] = event.end_time.split(':').map(Number);
-      const endTimeMinutes = endHour * 60 + endMinute;
-      
-      // If current time is after end time, event is no longer active
-      if (currentTime > endTimeMinutes) {
-        return false;
-      }
-    }
-  }
-  
-  return true;
+  return isAfter(zonedNow, eventStartTime) && isBefore(zonedNow, eventEndTime);
 }

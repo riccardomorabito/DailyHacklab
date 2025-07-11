@@ -1,15 +1,15 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import type { Submission } from '@/types';
-import { getAllSubmissionsForAdmin, moderateSubmission, deleteSubmissionByAdmin } from '@/actions/submission'; 
+import type { Post } from '@/types';
+import { getAllPostsForAdmin, moderatePost, deletePostByAdmin } from '@/actions/posts-management';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import NextImage from 'next/image'; 
 import { CheckCircle, XCircle, AlertTriangle, CalendarDays, ImageIcon, ChevronLeft, ChevronRight, Info, Frown, ShieldAlert, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { formatDateInUserTimezone } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { logger } from '@/lib/logger';
 import ErrorDisplay from './error-display'; 
@@ -77,7 +77,7 @@ const UserAvatar: React.FC<{
 };
 
 /**
- * ImageGallery component - Displays a carousel of images for submissions
+ * ImageGallery component - Displays a carousel of images for posts
  * @param photoUrls - Array of photo URLs to display
  * @param altPrefix - Prefix for alt text of images
  * @returns JSX element representing the image gallery
@@ -105,7 +105,7 @@ const ImageGallery: React.FC<{ photoUrls: string[], altPrefix: string }> = ({ ph
         width={600}
         height={338}
         className="object-cover w-full aspect-video"
-        data-ai-hint="submission admin"
+        data-ai-hint="post admin"
       />
       {photoUrls.length > 1 && (
         <>
@@ -138,48 +138,48 @@ const ImageGallery: React.FC<{ photoUrls: string[], altPrefix: string }> = ({ ph
 
 /**
  * AdminDashboard component - Main admin interface for content moderation
- * Displays all submissions with approval/rejection controls and deletion functionality
- * Allows administrators to moderate user submissions
+ * Displays all posts with approval/rejection controls and deletion functionality
+ * Allows administrators to moderate user posts
  * @returns JSX element representing the admin dashboard
  */
 export default function AdminDashboard() {
-  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorDetails, setErrorDetails] = useState<string | undefined>(undefined);
   const { toast } = useToast();
-  const [submissionToDelete, setSubmissionToDelete] = useState<Submission | null>(null);
+  const [postToDelete, setPostToDelete] = useState<Post | null>(null);
 
-  const fetchSubmissionsForAdmin = useCallback(async () => {
-    logger.info(ADMIN_DASHBOARD_CONTEXT, "fetchSubmissionsForAdmin: Starting submission retrieval.");
+  const fetchPostsForAdmin = useCallback(async () => {
+    logger.info(ADMIN_DASHBOARD_CONTEXT, "fetchPostsForAdmin: Starting post retrieval.");
     setIsLoading(true);
     setError(null);
     setErrorDetails(undefined);
-    const { data, error: fetchError } = await getAllSubmissionsForAdmin();
+    const { data, error: fetchError } = await getAllPostsForAdmin();
     if (fetchError) {
-      logger.error(ADMIN_DASHBOARD_CONTEXT, "fetchSubmissionsForAdmin: Error during submission retrieval:", fetchError);
-      setError("Unable to load submissions for moderation.");
-      setSubmissions([]);
+      logger.error(ADMIN_DASHBOARD_CONTEXT, "fetchPostsForAdmin: Error during post retrieval:", fetchError);
+      setError("Unable to load posts for moderation.");
+      setPosts([]);
     } else if (data) {
-      const sortedSubmissions = [...data].sort((a, b) => {
+      const sortedPosts = [...data].sort((a, b) => {
         if (a.approved === null && b.approved !== null) return -1; 
         if (a.approved !== null && b.approved === null) return 1;
         return new Date(b.submission_date).getTime() - new Date(a.submission_date).getTime(); 
       });
-      setSubmissions(sortedSubmissions);
-      logger.info(ADMIN_DASHBOARD_CONTEXT, `fetchSubmissionsForAdmin: Retrieved ${data.length} submissions.`);
+      setPosts(sortedPosts);
+      logger.info(ADMIN_DASHBOARD_CONTEXT, `fetchPostsForAdmin: Retrieved ${data.length} posts.`);
     }
     setIsLoading(false);
   }, []);
 
   useEffect(() => {
-    fetchSubmissionsForAdmin();
-  }, [fetchSubmissionsForAdmin]);
+    fetchPostsForAdmin();
+  }, [fetchPostsForAdmin]);
 
   const handleModerate = async (id: string, newApproveStatus: boolean) => {
-    logger.info(ADMIN_DASHBOARD_CONTEXT, `handleModerate: Attempting moderation for submission ID ${id} to ${newApproveStatus}.`);
-    const originalSubmissions = [...submissions];
-    setSubmissions(prev =>
+    logger.info(ADMIN_DASHBOARD_CONTEXT, `handleModerate: Attempting moderation for post ID ${id} to ${newApproveStatus}.`);
+    const originalPosts = [...posts];
+    setPosts(prev =>
         prev.map(sub => sub.id === id ? { ...sub, approved: newApproveStatus } : sub)
             .sort((a, b) => { 
                 if (a.approved === null && b.approved !== null) return -1;
@@ -188,36 +188,36 @@ export default function AdminDashboard() {
             })
     );
 
-    const { success, error: moderationError } = await moderateSubmission(id, newApproveStatus);
+    const { success, error: moderationError } = await moderatePost(id, newApproveStatus);
     
     if (success) {
-      logger.info(ADMIN_DASHBOARD_CONTEXT, `handleModerate: Submission ID ${id} successfully moderated to ${newApproveStatus}.`);
-      toast({ title: "Moderation Updated", description: `Submission ${newApproveStatus ? 'approved' : 'rejected'}.` });
+      logger.info(ADMIN_DASHBOARD_CONTEXT, `handleModerate: Post ID ${id} successfully moderated to ${newApproveStatus}.`);
+      toast({ title: "Moderation Updated", description: `Post ${newApproveStatus ? 'approved' : 'rejected'}.` });
     } else {
-      logger.error(ADMIN_DASHBOARD_CONTEXT, `handleModerate: Error during moderation of submission ID ${id}:`, moderationError);
+      logger.error(ADMIN_DASHBOARD_CONTEXT, `handleModerate: Error during moderation of post ID ${id}:`, moderationError);
       toast({ title: "Moderation Error", description: moderationError || "Unable to update status.", variant: "destructive" });
-      setSubmissions(originalSubmissions); 
+      setPosts(originalPosts); 
     }
   };
 
   const handleDeleteConfirm = async () => {
-    if (!submissionToDelete) return;
-    logger.info(ADMIN_DASHBOARD_CONTEXT, `handleDeleteConfirm: Confirming deletion for submission ID ${submissionToDelete.id}.`);
+    if (!postToDelete) return;
+    logger.info(ADMIN_DASHBOARD_CONTEXT, `handleDeleteConfirm: Confirming deletion for post ID ${postToDelete.id}.`);
     
-    const originalSubmissions = [...submissions];
-    setSubmissions(prev => prev.filter(sub => sub.id !== submissionToDelete.id));
+    const originalPosts = [...posts];
+    setPosts(prev => prev.filter(sub => sub.id !== postToDelete.id));
 
-    const { success, error: deleteError } = await deleteSubmissionByAdmin(submissionToDelete.id);
+    const { success, error: deleteError } = await deletePostByAdmin(postToDelete.id);
     
     if (success) {
-      logger.info(ADMIN_DASHBOARD_CONTEXT, `handleDeleteConfirm: Submission ID ${submissionToDelete.id} successfully deleted.`);
-      toast({ title: "Submission Deleted", description: "The submission has been deleted." });
+      logger.info(ADMIN_DASHBOARD_CONTEXT, `handleDeleteConfirm: Post ID ${postToDelete.id} successfully deleted.`);
+      toast({ title: "Post Deleted", description: "The post has been deleted." });
     } else {
-      logger.error(ADMIN_DASHBOARD_CONTEXT, `handleDeleteConfirm: Error during deletion of submission ID ${submissionToDelete.id}:`, deleteError);
-      toast({ title: "Deletion Error", description: deleteError || "Unable to delete the submission.", variant: "destructive" });
-      setSubmissions(originalSubmissions); 
+      logger.error(ADMIN_DASHBOARD_CONTEXT, `handleDeleteConfirm: Error during deletion of post ID ${postToDelete.id}:`, deleteError);
+      toast({ title: "Deletion Error", description: deleteError || "Unable to delete the post.", variant: "destructive" });
+      setPosts(originalPosts); 
     }
-    setSubmissionToDelete(null); 
+    setPostToDelete(null); 
   };
 
   if (isLoading) {
@@ -234,17 +234,17 @@ export default function AdminDashboard() {
      return <ErrorDisplay message={error} details={errorDetails} title="Error Loading Content" />;
   }
 
-  if (submissions.length === 0) {
+  if (posts.length === 0) {
     return (
       <div className="space-y-8">
         <h2 className="text-2xl font-bold text-center font-headline">Admin Panel - Content Moderation</h2>
         <Card className="w-full text-center shadow-lg">
             <CardHeader>
-                <CardTitle className="text-2xl font-headline">No Submissions</CardTitle>
+                <CardTitle className="text-2xl font-headline">No Posts</CardTitle>
             </CardHeader>
             <CardContent className="py-10">
                 <Info className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
-                <p className="text-lg text-muted-foreground">There are currently no submissions to moderate.</p>
+                <p className="text-lg text-muted-foreground">There are currently no posts to moderate.</p>
             </CardContent>
         </Card>
       </div>
@@ -254,68 +254,68 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-8">
       <h2 className="text-2xl font-bold text-center font-headline">Admin Panel - Content Moderation</h2>
-      {submissions.map((submission) => (
-        <Card key={submission.id} className={`overflow-hidden shadow-xl border-2 
-          ${submission.approved === null ? 'border-yellow-400 dark:border-yellow-600' 
-          : submission.approved ? 'border-green-400 dark:border-green-600' 
+      {posts.map((post) => (
+        <Card key={post.id} className={`overflow-hidden shadow-xl border-2 
+          ${post.approved === null ? 'border-yellow-400 dark:border-yellow-600' 
+          : post.approved ? 'border-green-400 dark:border-green-600' 
           : 'border-red-400 dark:border-red-600'}`}>
           <CardHeader className="pb-3">
              <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                 <UserAvatar
-                  avatarUrl={submission.user_avatar_url}
-                  userId={submission.user_id}
-                  userName={submission.user_name}
+                  avatarUrl={post.user_avatar_url}
+                  userId={post.user_id}
+                  userName={post.user_name}
                   size={40}
                   className="h-10 w-10"
                 />
                 <div>
-                    <CardTitle className="text-xl font-headline">{submission.user_name}</CardTitle>
+                    <CardTitle className="text-xl font-headline">{post.user_name}</CardTitle>
                     <div className="flex items-center text-xs text-muted-foreground">
                         <CalendarDays className="mr-1 h-3 w-3" />
-                        {formatDateInUserTimezone(submission.submission_date, "PPPp")}
+                        {formatDate(post.submission_date, "PPPp")}
                     </div>
                 </div>
                 </div>
                 <div>
-                    {submission.approved === null && <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-600 dark:text-yellow-100"><AlertTriangle className="h-3 w-3 mr-1" />Pending</span>}
-                    {submission.approved === true && <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-600 dark:text-green-100"><CheckCircle className="h-3 w-3 mr-1" />Approved</span>}
-                    {submission.approved === false && <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-600 dark:text-red-100"><XCircle className="h-3 w-3 mr-1" />Rejected</span>}
+                    {post.approved === null && <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-600 dark:text-yellow-100"><AlertTriangle className="h-3 w-3 mr-1" />Pending</span>}
+                    {post.approved === true && <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-600 dark:text-green-100"><CheckCircle className="h-3 w-3 mr-1" />Approved</span>}
+                    {post.approved === false && <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-600 dark:text-red-100"><XCircle className="h-3 w-3 mr-1" />Rejected</span>}
                 </div>
             </div>
           </CardHeader>
           <CardContent>
-            <ImageGallery photoUrls={submission.photo_urls || []} altPrefix={`Submission by ${submission.user_name}`} />
-            {submission.summary && (
-              <p className="text-foreground/90 leading-relaxed bg-secondary/30 p-3 rounded-md whitespace-pre-wrap">{submission.summary}</p>
+            <ImageGallery photoUrls={post.photo_urls || []} altPrefix={`Post by ${post.user_name}`} />
+            {post.summary && (
+              <p className="text-foreground/90 leading-relaxed bg-secondary/30 p-3 rounded-md whitespace-pre-wrap">{post.summary}</p>
             )}
-             {(!submission.photo_urls || submission.photo_urls.length === 0) && (
+             {(!post.photo_urls || post.photo_urls.length === 0) && (
               <div className="flex items-center text-sm text-muted-foreground p-3 bg-muted/20 rounded-md">
                 <ImageIcon className="mr-2 h-4 w-4" />
-                No photos provided for this submission.
+                No photos provided for this post.
               </div>
             )}
-             <div className="mt-3 text-xs text-muted-foreground">ID: {submission.id} - UserID: {submission.user_id}</div>
+             <div className="mt-3 text-xs text-muted-foreground">ID: {post.id} - UserID: {post.user_id}</div>
           </CardContent>
           <CardFooter className="bg-muted/30 p-4 flex items-center">
             <div className="flex-grow"></div> {/* Spacer */}
             <div className="flex items-center space-x-3">
                 <AlertDialog>
                 <AlertDialogTrigger asChild>
-                    <Button variant="default" className="bg-red-500 hover:bg-red-600 text-white" onClick={() => setSubmissionToDelete(submission)}>
+                    <Button variant="default" className="bg-red-500 hover:bg-red-600 text-white" onClick={() => setPostToDelete(post)}>
                     <Trash2 className="mr-2 h-4 w-4" /> Delete
                     </Button>
                 </AlertDialogTrigger>
-                {submissionToDelete && submissionToDelete.id === submission.id && (
+                {postToDelete && postToDelete.id === post.id && (
                     <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
                         <AlertDialogDescription>
-                        Are you sure you want to delete this submission by "{submissionToDelete.user_name}"? This action is irreversible.
+                        Are you sure you want to delete this post by "{postToDelete.user_name}"? This action is irreversible.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => setSubmissionToDelete(null)}>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel onClick={() => setPostToDelete(null)}>Cancel</AlertDialogCancel>
                         <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive hover:bg-destructive/90">
                         Yes, Delete
                         </AlertDialogAction>
@@ -323,10 +323,10 @@ export default function AdminDashboard() {
                     </AlertDialogContent>
                 )}
                 </AlertDialog>
-                <Button variant="default" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => handleModerate(submission.id, false)} disabled={submission.approved === false}>
+                <Button variant="default" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => handleModerate(post.id, false)} disabled={post.approved === false}>
                 <XCircle className="mr-2 h-4 w-4" /> Reject
                 </Button>
-                <Button variant="default" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleModerate(submission.id, true)} disabled={submission.approved === true}>
+                <Button variant="default" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleModerate(post.id, true)} disabled={post.approved === true}>
                 <CheckCircle className="mr-2 h-4 w-4" /> Approve
                 </Button>
             </div>

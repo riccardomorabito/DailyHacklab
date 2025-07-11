@@ -2,10 +2,11 @@
 
 import RegisterForm from '@/components/register-form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertTriangle, ShieldOff } from 'lucide-react';
+import { AlertTriangle, Loader2, ShieldOff } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { usePublicRegistration } from '@/hooks/use-app-settings';
+import GlobalLoading from '@/components/global-loading';
 
 /**
  * RegisterPage component - User registration page
@@ -17,37 +18,21 @@ export default function RegisterPage() {
   const { enabled: allowPublicRegistration, isLoading } = usePublicRegistration();
 
   if (isLoading) {
-    return (
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 flex-grow flex flex-col items-center justify-center">
-        <Card className="w-full max-w-md shadow-xl">
-          <CardHeader>
-            <CardTitle className="text-2xl font-headline flex items-center">
-              <AlertTriangle className="mr-2 h-6 w-6 text-primary animate-pulse" /> Checking Registration Status
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">Verifying registration settings...</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <GlobalLoading message="Verifying registration settings..." />;
   }
 
   if (!allowPublicRegistration) {
     return (
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 flex-grow flex flex-col items-center justify-center text-center">
-        <Card className="w-full max-w-md shadow-xl">
-          <CardHeader>
-             <ShieldOff className="mx-auto h-12 w-12 text-destructive mb-3" />
-            <CardTitle className="text-2xl font-headline">Registration Disabled</CardTitle>
-            <CardDescription>
-              Public registration is currently not active.
-              Please contact an administrator to create an account.
-            </CardDescription>
+        <Card className="w-full max-w-md shadow-xl overflow-hidden">
+          <CardHeader className="text-center pb-6 bg-gradient-to-br from-destructive/10 via-background to-background">
+            <ShieldOff className="mx-auto h-12 w-12 text-destructive mb-2" />
+            <CardTitle className="text-3xl md:text-4xl font-headline">Registration Disabled</CardTitle>
+            <CardDescription className="mt-1 text-muted-foreground">Public registration is currently not active. Please contact an administrator.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-10 pb-8 px-4 md:px-6 text-center">
             <Link href="/login" passHref>
-              <Button variant="outline">Back to Login</Button>
+              <Button variant="outline" size="lg">Back to Login</Button>
             </Link>
           </CardContent>
         </Card>

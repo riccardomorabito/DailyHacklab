@@ -76,7 +76,7 @@ interface AuthContextType {
    * @param updatedData - Partial user data to update
    * @returns Promise with update result
    */
-  updateCurrentUserData: (updatedData: Partial<Pick<User, 'name' | 'avatarUrl' | 'starredSubmissions' | 'updated_at'>>) => Promise<{error: any | null; user: User | null}>;
+  updateCurrentUserData: (updatedData: Partial<Pick<User, 'name' | 'avatarUrl' | 'starred_submissions' | 'updated_at'>>) => Promise<{error: any | null; user: User | null}>;
   
   /** 
    * Retrieves all users (admin only)
@@ -186,7 +186,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           role: 'user' as 'user' | 'admin', 
           score: 0,
           avatarUrl: supabaseUser.user_metadata?.avatar_url || undefined, 
-          starredSubmissions: [],
+          starred_submissions: [],
           updated_at: supabaseUser.updated_at || new Date().toISOString(),
       };
       logger.info(AUTH_PROVIDER_CONTEXT, `fetchUserProfile: Completed for user ID: ${supabaseUser.id} (error or not found, returning fallback profile)`);
@@ -202,7 +202,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             role: 'user' as 'user' | 'admin',
             score: 0,
             avatarUrl: supabaseUser.user_metadata?.avatar_url || undefined,
-            starredSubmissions: [],
+            starred_submissions: [],
             updated_at: supabaseUser.updated_at || new Date().toISOString(),
         };
         logger.info(AUTH_PROVIDER_CONTEXT, `fetchUserProfile: Completed for user ID: ${supabaseUser.id} (profile explicitly null, returning fallback profile)`);
@@ -218,16 +218,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       role: profile.role as ('user' | 'admin'),
       score: profile.score || 0,
       avatarUrl: profile.avatar_url || undefined,
-      starredSubmissions: profile.starred_submissions || [],
+      starred_submissions: profile.starred_submissions || [],
       updated_at: profile.updated_at || supabaseUser.updated_at || new Date().toISOString(),
     };
     logger.info(AUTH_PROVIDER_CONTEXT, `fetchUserProfile: Completed for user ID: ${supabaseUser.id} (profile successfully processed)`);
     return userProfileObject;
   }, [supabase]);
 
+
   /**
    * Authentication state change effect
-   * 
+   *
    * Sets up a listener for Supabase authentication state changes and manages
    * the component's authentication state accordingly. This effect:
    * - Listens for login, logout, and session refresh events
@@ -235,10 +236,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    * - Updates local state (currentUser, isAdmin) based on auth changes
    * - Handles component unmounting to prevent memory leaks
    * - Manages loading states during authentication operations
-   * 
+   *
    * The effect uses a mounted flag to prevent state updates after component unmounting,
    * which can occur during rapid navigation or authentication state changes.
-   * 
+   *
    * @effect
    * @dependencies [supabase, fetchUserProfile]
    */
@@ -247,13 +248,50 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     let mounted = true;
 
-    // Timeout fallback to prevent infinite loading
+    // Immediately check for existing session to prevent race conditions with middleware
+    const initializeAuth = async () => {
+      try {
+        logger.debug(AUTH_PROVIDER_CONTEXT, 'Checking for existing session...');
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (!mounted) return;
+        
+        if (error) {
+          logger.warn(AUTH_PROVIDER_CONTEXT, `Error getting initial session: ${error.message}`);
+        }
+        
+        if (session) {
+          logger.info(AUTH_PROVIDER_CONTEXT, 'Found existing session, initializing user profile');
+          const userProfile = await fetchUserProfile(session.user);
+          setCurrentUser(userProfile);
+          setIsAdmin(userProfile?.role === 'admin');
+        } else {
+          logger.debug(AUTH_PROVIDER_CONTEXT, 'No existing session found');
+          setCurrentUser(null);
+          setIsAdmin(false);
+        }
+        
+        setLoading(false);
+      } catch (error) {
+        logger.error(AUTH_PROVIDER_CONTEXT, 'Error initializing auth:', error);
+        if (mounted) {
+          setCurrentUser(null);
+          setIsAdmin(false);
+          setLoading(false);
+        }
+      }
+    };
+
+    // Initialize immediately
+    initializeAuth();
+
+    // Timeout fallback to prevent infinite loading (reduced for better UX on Vercel)
     const timeoutId = setTimeout(() => {
       if (mounted) {
-        logger.warn(AUTH_PROVIDER_CONTEXT, 'useEffect: Authentication initialization timeout after 5 seconds, stopping loading state.');
+        logger.warn(AUTH_PROVIDER_CONTEXT, 'useEffect: Authentication initialization timeout after 2 seconds, stopping loading state.');
         setLoading(false);
       }
-    }, 5000);
+    }, 2000); // Reduced to 2 seconds since we check immediately
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
@@ -302,6 +340,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (data.user) {
       logger.info(AUTH_PROVIDER_CONTEXT, 'login: Supabase login successful for user ID:', data.user.id);
       const userProfile = await fetchUserProfile(data.user);
+      
+      // Update local state immediately to prevent race conditions
+      if (userProfile) {
+        setCurrentUser(userProfile);
+        setIsAdmin(userProfile.role === 'admin');
+        logger.info(AUTH_PROVIDER_CONTEXT, 'login: Local state updated immediately after successful login.');
+      }
+      
       return { error: null, user: userProfile };
     }
     logger.warn(AUTH_PROVIDER_CONTEXT, 'login: Login failed, no user data returned from Supabase.');
@@ -315,8 +361,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = useCallback(async () => {
     logger.info(AUTH_PROVIDER_CONTEXT, 'logout: Logout called.');
     const { error } = await supabase.auth.signOut();
-    if (error) logger.error(AUTH_PROVIDER_CONTEXT, 'logout: Logout error:', error.message);
-    else logger.info(AUTH_PROVIDER_CONTEXT, "logout: User logged out.");
+    if (error) {
+      logger.error(AUTH_PROVIDER_CONTEXT, 'logout: Logout error:', error.message);
+    } else {
+      setCurrentUser(null);
+      setIsAdmin(false);
+      logger.info(AUTH_PROVIDER_CONTEXT, "logout: User logged out and session cleared.");
+      // No need to redirect here, the AuthProvider's useEffect will handle it
+    }
     return { error };
   }, [supabase]);
 
@@ -362,7 +414,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    * @param updatedData - Partial user data to update
    * @returns Promise containing error (if any) and updated user profile data
    */
-  const updateCurrentUserData = useCallback(async (updatedData: Partial<Pick<User, 'name' | 'avatarUrl' | 'starredSubmissions' | 'updated_at'>>) => {
+  const updateCurrentUserData = useCallback(async (updatedData: Partial<Pick<User, 'name' | 'avatarUrl' | 'starred_submissions' | 'updated_at'>>) => {
     if (!currentUser) {
       logger.warn(AUTH_PROVIDER_CONTEXT, 'updateCurrentUserData: Called but no current user.');
       return { error: {message: "No current user to update"}, user: null };
@@ -401,27 +453,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       logger.info(AUTH_PROVIDER_CONTEXT, "updateCurrentUserData: router.refresh() called after successful profile update.");
     }
 
-    if (updatedData.starredSubmissions !== undefined) {
+    if (updatedData.starred_submissions !== undefined) {
         // Use the potentially updated currentUser from serverResult.data or fallback to the existing currentUser
         const baseProfileForStarUpdate = serverResult?.data || currentUser;
-        const currentStarred = baseProfileForStarUpdate.starredSubmissions || [];
+        const currentStarred = baseProfileForStarUpdate.starred_submissions || [];
 
-        if (JSON.stringify(updatedData.starredSubmissions) !== JSON.stringify(currentStarred)) {
+        if (JSON.stringify(updatedData.starred_submissions) !== JSON.stringify(currentStarred)) {
             const { error: starUpdateError } = await supabase
                 .from('profiles')
-                .update({ starred_submissions: updatedData.starredSubmissions })
+                .update({ starred_submissions: updatedData.starred_submissions })
                 .eq('id', currentUser.id); // Use currentUser.id for the DB update
             if (starUpdateError) {
                 logger.error(AUTH_PROVIDER_CONTEXT, "updateCurrentUserData: Error updating starred_submissions in profiles table:", starUpdateError.message);
             } else {
                 logger.info(AUTH_PROVIDER_CONTEXT, "updateCurrentUserData: starred_submissions updated in profiles table.");
                 // Update the local currentUser state with the new starred submissions
-                setCurrentUser(prevUser => prevUser ? ({ ...prevUser, starredSubmissions: updatedData.starredSubmissions }) : null);
+                setCurrentUser(prevUser => prevUser ? ({ ...prevUser, starred_submissions: updatedData.starred_submissions }) : null);
             }
         }
     }
     
-    // Fetch the final state of the profile to ensure full consistency, especially if only starredSubmissions changed
+    // Fetch the final state of the profile to ensure full consistency, especially if only starred_submissions changed
     // or to confirm the state after server action + router.refresh() has settled.
     // Get the current Supabase user to pass to fetchUserProfile
     const { data: { user: supabaseUser } } = await supabase.auth.getUser();

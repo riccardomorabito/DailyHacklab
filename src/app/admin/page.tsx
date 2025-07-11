@@ -26,40 +26,40 @@ export default function AdminPage() {
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
           <Link href="/admin/events" passHref>
-            <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
-              <CardHeader>
-                <CardTitle className="flex items-center text-xl font-headline">
-                  <Sparkles className="mr-3 h-6 w-6 text-primary" />
+            <Card className="h-full shadow-xl overflow-hidden transition-shadow hover:shadow-2xl cursor-pointer">
+              <CardHeader className="text-center p-4 bg-gradient-to-br from-primary/10 via-background to-background">
+                <Sparkles className="mx-auto h-8 w-8 text-primary mb-2" />
+                <CardTitle className="text-xl font-headline">
                   Special Events
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 text-center text-sm">
                 <CardDescription>Create and manage events that offer bonus points.</CardDescription>
               </CardContent>
             </Card>
           </Link>
           <Link href="/admin/user-management" passHref>
-            <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
-              <CardHeader>
-                <CardTitle className="flex items-center text-xl font-headline">
-                  <Users className="mr-3 h-6 w-6 text-primary" />
+            <Card className="h-full shadow-xl overflow-hidden transition-shadow hover:shadow-2xl cursor-pointer">
+              <CardHeader className="text-center p-4 bg-gradient-to-br from-primary/10 via-background to-background">
+                <Users className="mx-auto h-8 w-8 text-primary mb-2" />
+                <CardTitle className="text-xl font-headline">
                   User Management
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 text-center text-sm">
                 <CardDescription>Add, modify, or remove user accounts.</CardDescription>
               </CardContent>
             </Card>
           </Link>
           <Link href="/admin/app-settings" passHref>
-            <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
-              <CardHeader>
-                <CardTitle className="flex items-center text-xl font-headline">
-                  <Settings className="mr-3 h-6 w-6 text-primary" />
+            <Card className="h-full shadow-xl overflow-hidden transition-shadow hover:shadow-2xl cursor-pointer">
+              <CardHeader className="text-center p-4 bg-gradient-to-br from-primary/10 via-background to-background">
+                <Settings className="mx-auto h-8 w-8 text-primary mb-2" />
+                <CardTitle className="text-xl font-headline">
                   Application Settings
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 text-center text-sm">
                 <CardDescription>Configure global options like registration.</CardDescription>
               </CardContent>
             </Card>

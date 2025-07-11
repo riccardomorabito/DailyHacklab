@@ -50,7 +50,7 @@ import ErrorDisplay from './error-display';
 import { Skeleton } from '@/components/ui/skeleton'; 
 import DynamicBoringAvatar from '@/components/dynamic-boring-avatar';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { formatDateInUserTimezone } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
 import { useAvatarLoader } from '@/hooks/use-avatar-loader';
 import ImageCropDialog from '@/components/image-crop-dialog';
 
@@ -626,7 +626,7 @@ export default function UserManagementDashboard(): React.JSX.Element {
                     )}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                        {user.updated_at ? formatDateInUserTimezone(user.updated_at, "dd/MM/yy HH:mm") : '-'}
+                        {user.updated_at ? formatDate(user.updated_at, "dd/MM/yy HH:mm") : '-'}
                     </TableCell>
                     <TableCell className="text-right space-x-2">
                     <Button variant="outline" size="sm" onClick={() => openEditDialog(user)} disabled={isEditingUser || isAddingUser}>

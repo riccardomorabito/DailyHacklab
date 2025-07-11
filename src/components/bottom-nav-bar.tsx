@@ -1,8 +1,7 @@
 "use client";
 
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, UploadCloud, ListChecks, BarChart2, Server as ServerIcon, Cog, CalendarDays } from 'lucide-react';
+import { Home, UploadCloud, ListChecks, Trophy, Server as ServerIcon, Cog, CalendarDays } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
 import React, { useEffect, useState } from 'react';
@@ -17,7 +16,7 @@ const BOTTOM_NAV_CONTEXT = "BottomNavBar";
 const navItems = [
   { href: '/', label: 'Home', icon: Home, requiresAuth: false },
   { href: '/posts', label: 'Posts', icon: CalendarDays, requiresAuth: true },
-  { href: '/leaderboard', label: 'Leaderboard', icon: BarChart2, requiresAuth: false },
+  { href: '/leaderboard', label: 'Leaderboard', icon: Trophy, requiresAuth: false },
   { href: '/server-farm', label: 'Server Farm', icon: ServerIcon, requiresAuth: true },
   { href: '/settings', label: 'Settings', icon: Cog, requiresAuth: true },
 ];
@@ -99,7 +98,7 @@ export default function BottomNavBar() {
   return (
     <nav className="fixed bottom-0 left-0 right-0 h-16 bg-background border-t border-border shadow-lg flex justify-around items-center z-40 md:hidden">
       {filteredNavItems.map((item) => (
-        <Link
+        <a
           key={item.href}
           href={item.href}
           className={cn(
@@ -110,9 +109,8 @@ export default function BottomNavBar() {
           )}
           aria-label={item.label}
         >
-          <item.icon className={cn("h-5 w-5 mb-0.5", pathname === item.href ? "text-primary" : "")} />
-          {item.label}
-        </Link>
+          <item.icon className={cn("h-6 w-6", pathname === item.href ? "text-primary" : "")} />
+        </a>
       ))}
     </nav>
   );

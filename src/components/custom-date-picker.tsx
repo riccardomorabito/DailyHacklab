@@ -22,7 +22,7 @@ import { enUS } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getSubmissionsCountByDayInRange } from '@/actions/submission';
+import { getPostsCountByDayInRange } from '@/actions/posts-management';
 import { logger } from '@/lib/logger';
 
 const CUSTOM_DATE_PICKER_CONTEXT = "CustomDatePicker";
@@ -78,13 +78,13 @@ export default function CustomDatePicker({
     const monthStart = startOfMonth(monthDate);
     const monthEnd = endOfMonth(monthDate);
     
-    const { data, error } = await getSubmissionsCountByDayInRange(monthStart, monthEnd);
+    const { data, error } = await getPostsCountByDayInRange(monthStart, monthEnd);
     if (error) {
       logger.error(CUSTOM_DATE_PICKER_CONTEXT, `fetchPostCountsForMonth: Error fetching counts: ${error}`);
       setPostCounts({}); 
     } else if (data) {
       const countsMap = data.reduce((acc, item) => {
-        // item.date is already YYYY-MM-DD (UTC) from getSubmissionsCountByDayInRange
+        // item.date is already YYYY-MM-DD (UTC) from getPostsCountByDayInRange
         acc[item.date] = item.count;
         return acc;
       }, {} as Record<string, number>);
@@ -154,11 +154,11 @@ export default function CustomDatePicker({
         <div className="flex flex-col gap-1.5 text-xs">
           <div className="flex items-center gap-2">
             <div className="h-2 w-2 rounded-full bg-yellow-400"></div>
-            <span className="text-muted-foreground">Single submission</span>
+            <span className="text-muted-foreground">Single post</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="h-2 w-2 rounded-full bg-green-500"></div>
-            <span className="text-muted-foreground">Multiple submissions</span>
+            <span className="text-muted-foreground">Multiple posts</span>
           </div>
         </div>
       </div>

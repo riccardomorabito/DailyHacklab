@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import Image from 'next/image';
 import MainNav from './main-nav'; // MainNav now provides the SheetTrigger and Sheet
 
@@ -13,7 +12,7 @@ export default function Header() {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">
         {/* Logo and App Name Link */}
-        <Link href="/" className="flex items-center space-x-2" aria-label="Daily Hacklab Home">
+        <a href="/" className="flex items-center space-x-2" aria-label="Daily Hacklab Home">
           <Image
             src="/images/logos/logo-icon.png"
             alt="Daily Hacklab Logo"
@@ -22,7 +21,7 @@ export default function Header() {
             className="rounded-sm"
           />
           <span className="font-bold text-xl hidden sm:inline-block font-headline">Daily Hacklab</span>
-        </Link>
+        </a>
         {/* Main Navigation (usually a mobile menu trigger) */}
         <MainNav />
       </div>

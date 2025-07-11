@@ -164,13 +164,13 @@ export default function ServerFarmVisualization(): JSX.Element {
 
 
   return (
-    <Card className="w-full max-w-4xl mx-auto shadow-xl overflow-hidden">
-      <CardHeader className="text-center pb-4">
+    <Card className="w-full mx-auto shadow-xl overflow-hidden">
+      <CardHeader className="text-center pb-6 bg-gradient-to-br from-primary/10 via-background to-background">
         <FarmOverallIcon className={cn(
-            `h-12 w-12 md:h-16 md:w-16 transition-all duration-500 ease-in-out transform ${farmLevel > 0 ? 'scale-110' : ''}`, // Slight scale animation if farm is active
-            'text-accent', 
-            'mx-auto',    
-            'mb-3'        
+            `h-12 w-12 md:h-16 md:w-16 transition-all duration-500 ease-in-out transform ${farmLevel > 0 ? 'scale-110' : ''}`,
+            'text-primary',
+            'mx-auto',
+            'mb-2'
         )} />
         <CardTitle className="text-2xl md:text-3xl font-headline">Your Datacenter</CardTitle>
         <CardDescription className="mt-1">
@@ -178,7 +178,7 @@ export default function ServerFarmVisualization(): JSX.Element {
           {farmLevel > 0 && ` - Datacenter Level: ${farmLevel}`}
         </CardDescription>
       </CardHeader>
-      <CardContent className="px-2 md:px-6 pb-6">
+      <CardContent className="p-4 md:p-6">
         {/* Progress Bar Section */}
         <div className="mb-6">
           <Label htmlFor="farm-progress" className="text-sm font-medium text-muted-foreground mb-1 block text-center">
